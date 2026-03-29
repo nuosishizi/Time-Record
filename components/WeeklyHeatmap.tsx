@@ -69,50 +69,56 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
     }
   });
 
-  const copyToSpreadsheet = (daysToExport: number) => {
-    const datesToExport = weekDates.slice(7 - daysToExport);
-    
+  const copyToSpreadsheet = (datesToExport: Date[], label: string) => {
     let tsv = "时间 \\ 日期\t" + datesToExport.map(d => `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${daysMap[d.getDay()]}`).join("\t") + "\n";
     
     for (let h = 0; h < 24; h++) {
-        for (let m of [0, 30]) {
-            const timeLabel = `${h}:${m === 0 ? '00' : '30'}`;
-            let row = [timeLabel];
+        const timeLabel = `${h}:00`;
+        let row = [timeLabel];
+        
+        for (const d of datesToExport) {
+            const blockStart = new Date(d);
+            blockStart.setHours(h, 0, 0, 0);
+            const blockEnd = new Date(blockStart.getTime() + 60 * 60000); // 1 hour block
             
-            for (const d of datesToExport) {
-                const blockStart = new Date(d);
-                blockStart.setHours(h, m, 0, 0);
-                const blockEnd = new Date(blockStart.getTime() + 30 * 60000);
+            const overlappingSegs = segments.filter(seg => {
+                const s = new Date(seg.startTime);
+                const e = seg.endTime ? new Date(seg.endTime) : new Date();
+                return s < blockEnd && e > blockStart;
+            });
+            
+            if (overlappingSegs.length > 0) {
+                // Aggregate durations by task name
+                const taskDurations: Record<string, number> = {};
                 
-                const overlappingSegs = segments.filter(seg => {
+                overlappingSegs.forEach(seg => {
+                    const t = tasks.find(tsk => tsk.id === seg.taskId);
+                    const taskName = t ? t.title : '未知';
+                    
                     const s = new Date(seg.startTime);
                     const e = seg.endTime ? new Date(seg.endTime) : new Date();
-                    return s < blockEnd && e > blockStart;
+                    const overlapStart = s > blockStart ? s : blockStart;
+                    const overlapEnd = e < blockEnd ? e : blockEnd;
+                    const mins = Math.round((overlapEnd.getTime() - overlapStart.getTime()) / 60000);
+                    
+                    if (mins > 0) {
+                        taskDurations[taskName] = (taskDurations[taskName] || 0) + mins;
+                    }
                 });
                 
-                if (overlappingSegs.length > 0) {
-                    const cellData = overlappingSegs.map(seg => {
-                        const t = tasks.find(tsk => tsk.id === seg.taskId);
-                        // Calculate overlap duration within this specific 30-min block
-                        const s = new Date(seg.startTime);
-                        const e = seg.endTime ? new Date(seg.endTime) : new Date();
-                        const overlapStart = s > blockStart ? s : blockStart;
-                        const overlapEnd = e < blockEnd ? e : blockEnd;
-                        const mins = Math.round((overlapEnd.getTime() - overlapStart.getTime()) / 60000);
-                        return `${t ? t.title : '未知'}(${mins}m)`;
-                    });
-                    const uniqueData = Array.from(new Set(cellData));
-                    row.push(uniqueData.join(" / "));
-                } else {
-                    row.push("");
-                }
+                const cellData = Object.entries(taskDurations)
+                    .map(([name, mins]) => `${name}(${mins}m)`);
+                    
+                row.push(cellData.join(" / "));
+            } else {
+                row.push("");
             }
-            tsv += row.join("\t") + "\n";
         }
+        tsv += row.join("\t") + "\n";
     }
     
     navigator.clipboard.writeText(tsv).then(() => {
-        alert(`已复制 ${daysToExport === 1 ? '今日' : '近7天'} 的排期表，可直接粘贴至 Excel/Google 表格`);
+        alert(`已复制 [${label}] 的排期表，可直接粘贴至 Excel/Google 表格`);
     });
   };
 
@@ -129,13 +135,13 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
         </div>
         <div className="flex gap-2">
             <button 
-                onClick={() => copyToSpreadsheet(1)}
+                onClick={() => copyToSpreadsheet([weekDates[6]], '今日')}
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700 transition-colors flex items-center gap-2"
             >
                 <i className="fa-regular fa-copy"></i> 复制今日
             </button>
             <button 
-                onClick={() => copyToSpreadsheet(7)}
+                onClick={() => copyToSpreadsheet(weekDates, '本周')}
                 className="px-3 py-1.5 bg-blue-900/30 hover:bg-blue-800/50 text-blue-400 text-xs rounded-lg border border-blue-800/50 transition-colors flex items-center gap-2"
             >
                 <i className="fa-regular fa-calendar-days"></i> 复制本周
@@ -148,9 +154,16 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
         <div className="grid grid-cols-[50px_repeat(7,1fr)] gap-1 mb-2 sticky top-0 bg-slate-900 z-10 py-2">
            <div className="text-xs text-slate-500"></div>
            {weekDates.map((d, idx) => (
-               <div key={idx} className="flex flex-col items-center justify-center">
+               <div key={idx} className="flex flex-col items-center justify-center group relative">
                    <div className="text-xs text-slate-400 font-medium">{daysMap[d.getDay()]}</div>
                    <div className="text-[10px] text-slate-500 font-mono mt-0.5">{d.getMonth()+1}/{d.getDate()}</div>
+                   <button 
+                       onClick={() => copyToSpreadsheet([d], `${d.getMonth()+1}月${d.getDate()}日`)}
+                       className="absolute -top-1 -right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 text-blue-400 hover:text-blue-300"
+                       title="复制此日记录"
+                   >
+                       <i className="fa-regular fa-copy text-xs"></i>
+                   </button>
                </div>
            ))}
         </div>
