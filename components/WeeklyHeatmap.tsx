@@ -56,15 +56,49 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
     }
   });
 
+  const copyToClipboard = () => {
+    let tsv = "Task Name\tTag\tDate\tStart Time\tEnd Time\tDuration (Minutes)\n";
+    segments.forEach(seg => {
+        const task = tasks.find(t => t.id === seg.taskId);
+        if (!task) return;
+        const tag = tags.find(t => t.id === task.tagId);
+        
+        const start = new Date(seg.startTime);
+        const end = seg.endTime ? new Date(seg.endTime) : new Date();
+        const durationMin = Math.floor((end.getTime() - start.getTime()) / 60000);
+        
+        const dateStr = start.toLocaleDateString();
+        const startTimeStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const endTimeStr = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        tsv += `${task.title}\t${tag?.name || ''}\t${dateStr}\t${startTimeStr}\t${endTimeStr}\t${durationMin}\n`;
+    });
+    
+    navigator.clipboard.writeText(tsv).then(() => {
+        alert("已复制到剪贴板，可直接粘贴至 Excel 或 Google 表格");
+    }).catch(err => {
+        console.error('Failed to copy: ', err);
+    });
+  };
+
   return (
     <div className="p-4 bg-slate-900 rounded-xl border border-slate-800 overflow-x-auto relative">
       <div className="flex justify-between items-center mb-4 sticky left-0 z-20">
-        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">
-          <i className="fa-solid fa-border-all mr-2"></i> 时间分布热力图
-        </h3>
-        <div className="text-xs text-slate-500">
-           基于真实专注时长的百分比占比
+        <div>
+            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <i className="fa-solid fa-border-all"></i> 时间分布热力图
+            </h3>
+            <div className="text-xs text-slate-500 mt-1">
+            基于真实专注时长的百分比占比
+            </div>
         </div>
+        <button 
+            onClick={copyToClipboard}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700 transition-colors flex items-center gap-2"
+            title="复制数据以粘贴到表格"
+        >
+            <i className="fa-regular fa-copy"></i> 复制为表格
+        </button>
       </div>
 
       <div className="min-w-[800px]">
