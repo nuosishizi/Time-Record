@@ -11,35 +11,40 @@ interface RetroactiveModalProps {
 export const RetroactiveModal: React.FC<RetroactiveModalProps> = ({ tags, onSave, onClose }) => {
   const [title, setTitle] = useState('');
   const [tagId, setTagId] = useState(tags[0]?.id || '');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:00');
   const [description, setDescription] = useState('');
+
+  // Auto-sync end date if start date changes and end date was the same
+  const handleStartDateChange = (newDate: string) => {
+      setStartDate(newDate);
+      if (new Date(endDate) < new Date(newDate)) {
+          setEndDate(newDate);
+      }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
-    // Construct timestamps
-    const startObj = new Date(`${date}T${startTime}`);
-    let endObj = new Date(`${date}T${endTime}`);
+    const startObj = new Date(`${startDate}T${startTime}`);
+    const endObj = new Date(`${endDate}T${endTime}`);
 
-    // Cross-day logic: If end time is earlier than start time, it likely crossed midnight
     if (endObj.getTime() <= startObj.getTime()) {
-        endObj.setDate(endObj.getDate() + 1);
+        alert("结束时间必须晚于开始时间！如果跨天了，请修改结束日期。");
+        return;
     }
 
     onSave(title, tagId, startObj.getTime(), endObj.getTime(), description);
   };
 
-  // Calculate duration preview
   const getDurationPreview = () => {
-    const start = new Date(`${date}T${startTime}`).getTime();
-    let end = new Date(`${date}T${endTime}`).getTime();
+    const start = new Date(`${startDate}T${startTime}`).getTime();
+    const end = new Date(`${endDate}T${endTime}`).getTime();
     
-    if (end <= start) {
-        end += 24 * 60 * 60 * 1000; // Add 1 day if crossed midnight
-    }
+    if (end <= start) return "时间无效";
 
     const diffMin = Math.floor((end - start) / 60000);
     const h = Math.floor(diffMin / 60);
@@ -75,53 +80,60 @@ export const RetroactiveModal: React.FC<RetroactiveModalProps> = ({ tags, onSave
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-             <div>
-               <label className="text-xs text-slate-400 block mb-1">日期</label>
-               <input 
-                  type="date"
-                  value={date}
-                  onChange={e => setDate(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none"
-               />
-             </div>
-             <div>
-               <label className="text-xs text-slate-400 block mb-1">分类标签</label>
-               <select 
-                  value={tagId}
-                  onChange={e => setTagId(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none"
-               >
-                 {tags.map(t => (
-                   <option key={t.id} value={t.id}>{t.name}</option>
-                 ))}
-               </select>
-             </div>
+          <div>
+             <label className="text-xs text-slate-400 block mb-1">分类标签</label>
+             <select 
+                value={tagId}
+                onChange={e => setTagId(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none"
+             >
+               {tags.map(t => (
+                 <option key={t.id} value={t.id}>{t.name}</option>
+               ))}
+             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 items-center">
-             <div className="relative">
-                <label className="text-xs text-slate-400 block mb-1">开始时间</label>
-                <input 
-                    type="time"
-                    value={startTime}
-                    onChange={e => setStartTime(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-left outline-none"
-                />
+          <div className="grid grid-cols-2 gap-4 items-center bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+             <div>
+                <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">开始时间</label>
+                <div className="flex gap-2">
+                    <input 
+                        type="date"
+                        value={startDate}
+                        onChange={e => handleStartDateChange(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded flex-1 px-2 py-1.5 text-xs text-white outline-none"
+                    />
+                    <input 
+                        type="time"
+                        value={startTime}
+                        onChange={e => setStartTime(e.target.value)}
+                        className="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-white outline-none"
+                    />
+                </div>
              </div>
 
-             <div className="relative">
-                <label className="text-xs text-slate-400 block mb-1">结束时间</label>
-                <input 
-                    type="time"
-                    value={endTime}
-                    onChange={e => setEndTime(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-left outline-none"
-                />
-                
-                <div className="absolute top-8 right-12 text-[10px] text-green-400 font-mono pointer-events-none">
-                    {getDurationPreview()}
+             <div>
+                <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">结束时间</label>
+                <div className="flex gap-2">
+                    <input 
+                        type="date"
+                        value={endDate}
+                        onChange={e => setEndDate(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded flex-1 px-2 py-1.5 text-xs text-white outline-none"
+                    />
+                    <input 
+                        type="time"
+                        value={endTime}
+                        onChange={e => setEndTime(e.target.value)}
+                        className="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-white outline-none"
+                    />
                 </div>
+             </div>
+             
+             <div className="col-span-2 text-right mt-1">
+                 <span className="text-xs text-green-400 font-mono bg-green-900/20 px-2 py-1 rounded">
+                     总计: {getDurationPreview()}
+                 </span>
              </div>
           </div>
 

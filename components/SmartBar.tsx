@@ -280,11 +280,16 @@ export const SmartBar: React.FC<SmartBarProps> = ({ onAdd, timezone, tags }) => 
                         <button type="button" onClick={() => setSelectedTagId('')} className={`px-2 py-1 rounded text-xs border ${!selectedTagId ? 'bg-blue-600 text-white border-blue-500 shadow-md' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'}`}>
                             <i className="fa-solid fa-wand-magic-sparkles mr-1"></i> AI 智能分类
                         </button>
-                        {tags.map(t => (
-                             <button key={t.id} type="button" onClick={() => setSelectedTagId(t.id)} className={`px-2 py-1 rounded text-xs border transition-colors ${selectedTagId === t.id ? t.color.replace('bg-', 'bg-').replace('500', '600') + ' text-white border-transparent shadow-md' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'}`}>
-                                 {t.name}
-                             </button>
-                        ))}
+                        {tags.map(t => {
+                             const safeColor = t.color || 'bg-slate-500';
+                             const activeColor = safeColor.replace('bg-', 'bg-').replace('500', '600') + ' text-white border-transparent shadow-md';
+                             const inactiveColor = 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700';
+                             return (
+                                <button key={t.id} type="button" onClick={() => setSelectedTagId(t.id)} className={`px-2 py-1 rounded text-xs border transition-colors ${selectedTagId === t.id ? activeColor : inactiveColor}`}>
+                                    {t.name}
+                                </button>
+                             );
+                        })}
                     </div>
                 </div>
 

@@ -18,8 +18,10 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
   const [calDate, setCalDate] = useState(new Date());
   const [advice, setAdvice] = useState('');
   const [loading, setLoading] = useState(false);
+  const [daysToRender, setDaysToRender] = useState(14); // Load last 14 days initially
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const loaderRef = useRef<HTMLDivElement>(null);
 
   // Sync calendar month with selected date when it changes externally
   useEffect(() => {
@@ -34,6 +36,17 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
       });
       return set;
   }, [segments]);
+
+  // Generate a continuous list of dates to render
+  const continuousDaysList = useMemo(() => {
+      const today = new Date();
+      // Ensure we always start from "today" in local time
+      today.setHours(0,0,0,0);
+      return Array.from({ length: daysToRender }, (_, i) => {
+          const d = new Date(today.getTime() - i * 24 * 3600 * 1000);
+          return getLocalDateString(d);
+      });
+  }, [daysToRender]);
 
   // Group all segments by Date
   const groupedTimeline = useMemo(() => {
@@ -67,39 +80,47 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
         groups[k].sort((a, b) => a.startTimestamp - b.startTimestamp);
     });
 
-    return Object.keys(groups)
-        .sort((a, b) => b.localeCompare(a)) // Sort newest days first
-        .map(date => ({
-            date,
-            items: groups[date]
-        }));
+    return groups;
   }, [segments, tasks, tags]);
 
   const scrollToDate = (dateStr: string) => {
       setSelectedDate(dateStr);
       setAdvice('');
-      const el = document.getElementById(`timeline-date-${dateStr}`);
-      if (el && scrollContainerRef.current) {
-          // Calculate offset to scroll properly with sticky headers
-          const containerTop = scrollContainerRef.current.getBoundingClientRect().top;
-          const elTop = el.getBoundingClientRect().top;
-          scrollContainerRef.current.scrollBy({
-              top: elTop - containerTop - 20, 
-              behavior: 'smooth'
-          });
+      
+      // If the date is older than what we currently render, expand the render limit
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const targetDate = new Date(dateStr);
+      targetDate.setHours(0,0,0,0);
+      const diffDays = Math.floor((today.getTime() - targetDate.getTime()) / (24*3600*1000));
+      
+      if (diffDays >= daysToRender) {
+          setDaysToRender(diffDays + 14);
       }
+
+      setTimeout(() => {
+          const el = document.getElementById(`timeline-date-${dateStr}`);
+          if (el && scrollContainerRef.current) {
+              const containerTop = scrollContainerRef.current.getBoundingClientRect().top;
+              const elTop = el.getBoundingClientRect().top;
+              scrollContainerRef.current.scrollBy({
+                  top: elTop - containerTop - 20, 
+                  behavior: 'smooth'
+              });
+          }
+      }, 100);
   };
 
   const handleAnalysis = async () => {
     setLoading(true);
-    const targetGroup = groupedTimeline.find(g => g.date === selectedDate);
-    if (!targetGroup) {
+    const targetGroup = groupedTimeline[selectedDate];
+    if (!targetGroup || targetGroup.length === 0) {
         setAdvice("该日期暂无记录可供分析。");
         setLoading(false);
         return;
     }
 
-    const timelineText = targetGroup.items.map(item => 
+    const timelineText = targetGroup.map(item => 
       `${item.startTime} - ${item.endTime}: [${item.tagName}] ${item.taskTitle} (${item.duration} min)`
     ).join('\n');
 
@@ -128,25 +149,39 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
   // Setup Intersection Observer to update selected date as user scrolls
   useEffect(() => {
       const observer = new IntersectionObserver((entries) => {
-          // Find the visible date header closest to the top
           for (const entry of entries) {
-              if (entry.isIntersecting) {
+              if (entry.isIntersecting && entry.intersectionRatio > 0.1) {
                   const dateStr = entry.target.id.replace('timeline-date-', '');
                   setSelectedDate(dateStr);
-                  break; // Just pick the first intersecting one
+                  break; 
               }
           }
       }, {
           root: scrollContainerRef.current,
-          rootMargin: '-10% 0px -80% 0px', // Trigger near the top of the container
-          threshold: 0
+          rootMargin: '-20% 0px -60% 0px', 
+          threshold: [0.1]
       });
 
       const elements = document.querySelectorAll('.timeline-date-header');
       elements.forEach(el => observer.observe(el));
 
       return () => observer.disconnect();
-  }, [groupedTimeline]);
+  }, [daysToRender, groupedTimeline]);
+
+  // Infinite Scroll Observer
+  useEffect(() => {
+      const loader = loaderRef.current;
+      if (!loader) return;
+
+      const observer = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting) {
+              setDaysToRender(prev => prev + 14); // Load 2 more weeks
+          }
+      }, { root: scrollContainerRef.current, rootMargin: '200px' });
+
+      observer.observe(loader);
+      return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="max-w-6xl mx-auto h-full flex flex-col md:flex-row gap-6">
@@ -231,61 +266,66 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
             ref={scrollContainerRef}
             className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-6 relative"
         >
-            {groupedTimeline.length === 0 ? (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center w-full">
-                    <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <i className="fa-regular fa-calendar-xmark text-slate-500 text-2xl"></i>
-                    </div>
-                    <div className="text-slate-500 text-sm">暂无任何时间记录。</div>
-                </div>
-            ) : (
-                <div className="space-y-16 pb-32">
-                    {groupedTimeline.map(group => (
-                        <div key={group.date} id={`timeline-date-${group.date}`} className="timeline-date-header">
-                            <div className="sticky top-0 bg-slate-900/95 backdrop-blur z-20 py-4 mb-6 border-b border-slate-800/50">
-                                <h2 className="text-lg font-bold text-white flex items-center gap-3">
-                                    <i className="fa-solid fa-stopwatch text-blue-400"></i> 
-                                    {new Date(group.date).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}
-                                </h2>
-                            </div>
+            <div className="space-y-16 pb-12">
+                {continuousDaysList.map(dateStr => {
+                    const items = groupedTimeline[dateStr] || [];
+                    
+                    return (
+                    <div key={dateStr} id={`timeline-date-${dateStr}`} className="timeline-date-header">
+                        <div className="sticky top-0 bg-slate-900/95 backdrop-blur z-20 py-4 mb-6 border-b border-slate-800/50 flex justify-between items-center">
+                            <h2 className="text-lg font-bold text-white flex items-center gap-3">
+                                <i className="fa-solid fa-stopwatch text-blue-400"></i> 
+                                {new Date(dateStr).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}
+                            </h2>
+                            {items.length === 0 && (
+                                <span className="text-xs text-slate-500 bg-slate-800 px-3 py-1 rounded-full">无记录</span>
+                            )}
+                        </div>
 
-                            <div className="relative border-l-2 border-slate-800 ml-20 space-y-8">
-                                {group.items.map((item) => (
-                                    <div key={item.id} className="relative pl-8 group">
-                                        <div className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 border-slate-900 ${item.tagColor} shadow-lg group-hover:scale-125 transition-transform`}></div>
-                                        
-                                        <div className="absolute -left-20 top-0.5 text-xs font-mono text-slate-500 text-right w-12 group-hover:text-slate-300 transition-colors">
-                                            {item.startTime}
-                                        </div>
+                        <div className="relative border-l-2 border-slate-800 ml-20 space-y-8">
+                            {items.length === 0 ? (
+                                <div className="pl-8 py-4 text-slate-600 text-sm italic">这天没有做任何记录。</div>
+                            ) : (
+                                items.map((item) => (
+                                <div key={item.id} className="relative pl-8 group">
+                                    <div className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 border-slate-900 ${item.tagColor} shadow-lg group-hover:scale-125 transition-transform`}></div>
+                                    
+                                    <div className="absolute -left-20 top-0.5 text-xs font-mono text-slate-500 text-right w-12 group-hover:text-slate-300 transition-colors">
+                                        {item.startTime}
+                                    </div>
 
-                                        <div className={`bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-xl p-4 transition-all hover:shadow-lg ${item.isRunning ? 'border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : ''}`}>
-                                            <div className="flex justify-between items-start gap-4">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wider ${item.tagColor.replace('bg-', 'bg-').replace('500', '500/20')} ${item.tagColor.replace('bg-', 'text-').replace('500', '300')}`}>
-                                                            {item.tagName}
-                                                        </span>
-                                                        {item.isRunning && <span className="text-[10px] text-green-400 font-bold animate-pulse flex items-center gap-1"><span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span> 进行中</span>}
-                                                    </div>
-                                                    <h4 className="text-sm font-medium text-slate-200 leading-snug">{item.taskTitle}</h4>
+                                    <div className={`bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-xl p-4 transition-all hover:shadow-lg ${item.isRunning ? 'border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : ''}`}>
+                                        <div className="flex justify-between items-start gap-4">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wider ${item.tagColor.replace('bg-', 'bg-').replace('500', '500/20')} ${item.tagColor.replace('bg-', 'text-').replace('500', '300')}`}>
+                                                        {item.tagName}
+                                                    </span>
+                                                    {item.isRunning && <span className="text-[10px] text-green-400 font-bold animate-pulse flex items-center gap-1"><span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span> 进行中</span>}
                                                 </div>
-                                                <div className="text-right shrink-0">
-                                                    <div className="text-sm font-bold text-slate-200 font-mono">
-                                                        {formatDurationFriendly(item.duration)}
-                                                    </div>
-                                                    <div className="text-[10px] text-slate-500 mt-1 font-mono">
-                                                        ~ {item.endTime}
-                                                    </div>
+                                                <h4 className="text-sm font-medium text-slate-200 leading-snug">{item.taskTitle}</h4>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <div className="text-sm font-bold text-slate-200 font-mono">
+                                                    {formatDurationFriendly(item.duration)}
+                                                </div>
+                                                <div className="text-[10px] text-slate-500 mt-1 font-mono">
+                                                    ~ {item.endTime}
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
+                                </div>
+                            )))}
                         </div>
-                    ))}
-                </div>
-            )}
+                    </div>
+                )})}
+            </div>
+            
+            {/* Invisible loader element to trigger infinite scroll */}
+            <div ref={loaderRef} className="h-20 flex items-center justify-center text-slate-500 text-xs">
+                <i className="fa-solid fa-circle-notch animate-spin mr-2"></i> 加载更早的记录...
+            </div>
         </div>
       </div>
     </div>
