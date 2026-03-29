@@ -261,7 +261,7 @@ const App: React.FC = () => {
 
 // --- Task CRUD Logic ---
 
-  const addTask = async (title: string, date: Date, recurrence: RecurrenceType, isInterruption: boolean, details: { description: string, links: string, reminderOffsets: number[] }) => {
+  const addTask = async (title: string, date: Date, recurrence: RecurrenceType, isInterruption: boolean, details: { description: string, links: string, reminderOffsets: number[], tagId?: string }) => {
     const tempId = crypto.randomUUID();
     
     // Auto-pause if interruption
@@ -273,14 +273,13 @@ const App: React.FC = () => {
       }
     }
 
-    // ✅ 修复点 1: 安全获取 tagId (防止 tags 为空时报错)
-    // 如果 tags 还没加载出来，就硬编码使用 't-work' 或第一个默认标签
-    const safeTagId = (tags && tags.length > 0) ? tags[0].id : 't-work';
+    // ✅ 如果用户手动选择了标签，直接使用；否则使用默认标签并等待 AI 分类
+    const safeTagId = details.tagId || ((tags && tags.length > 0) ? tags[0].id : 't-work');
 
     const newTask: Task = {
       id: tempId,
       title,
-      tagId: safeTagId, // ✅ 使用安全 ID
+      tagId: safeTagId,
       status: isInterruption ? TaskStatus.RUNNING : TaskStatus.WAITING,
       planTime: date.toISOString(),
       recurrence,
@@ -305,16 +304,17 @@ const App: React.FC = () => {
       playSound('start');
     }
 
-    // 异步调用 AI 分类，不阻塞界面
-    classifyTaskWithAI(title, tags)
-      .then(classifiedTagId => {
-         if (classifiedTagId) {
-            setTasks(prev => prev.map(t => t.id === tempId ? { ...t, tagId: classifiedTagId } : t));
-         }
-      })
-      .catch(e => console.log("AI classification skipped (offline or error)"));
+    // 如果没有手动指定标签，才使用异步 AI 分类
+    if (!details.tagId) {
+        classifyTaskWithAI(title, tags)
+        .then(classifiedTagId => {
+            if (classifiedTagId) {
+                setTasks(prev => prev.map(t => t.id === tempId ? { ...t, tagId: classifiedTagId } : t));
+            }
+        })
+        .catch(e => console.log("AI classification skipped (offline or error)"));
+    }
 
-    // ✅ 修复点 2: 必须返回 newTask，否则 SmartBar 里的后续逻辑会找不到 id 报错
     return newTask; 
   };
   
@@ -759,6 +759,15 @@ const App: React.FC = () => {
           </div>
           <button onClick={() => setAiPopup(null)} className="text-slate-500 hover:text-white self-start">
             <i className="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;
+ark"></i>
           </button>
         </div>
       )}

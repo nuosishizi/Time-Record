@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { RecurrenceType } from '../types';
+import { RecurrenceType, Tag } from '../types';
 import { formatTimeInZone, getHourInZone } from '../utils/timeUtils';
 
 interface SmartBarProps {
@@ -9,12 +9,13 @@ interface SmartBarProps {
     date: Date, 
     recurrence: RecurrenceType, 
     isInterruption: boolean,
-    details: { description: string; links: string; reminderOffsets: number[] }
+    details: { description: string; links: string; reminderOffsets: number[], tagId?: string }
   ) => void;
   timezone: string;
+  tags: Tag[];
 }
 
-export const SmartBar: React.FC<SmartBarProps> = ({ onAdd, timezone }) => {
+export const SmartBar: React.FC<SmartBarProps> = ({ onAdd, timezone, tags }) => {
   const [title, setTitle] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [mode, setMode] = useState<'simple' | 'detailed'>('simple');
@@ -26,6 +27,7 @@ export const SmartBar: React.FC<SmartBarProps> = ({ onAdd, timezone }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [recurrence, setRecurrence] = useState<RecurrenceType>(RecurrenceType.NONE);
   const [reminderOffsets, setReminderOffsets] = useState<number[]>([15]); // Default 15 min
+  const [selectedTagId, setSelectedTagId] = useState<string>(''); // empty means AI auto-classify
 
   // Calendar State
   const [calViewDate, setCalViewDate] = useState(new Date()); 
@@ -52,7 +54,7 @@ export const SmartBar: React.FC<SmartBarProps> = ({ onAdd, timezone }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onAdd(title, selectedDate, recurrence, false, { description, links, reminderOffsets });
+    onAdd(title, selectedDate, recurrence, false, { description, links, reminderOffsets, tagId: selectedTagId || undefined });
     resetForm();
   };
 
@@ -60,7 +62,7 @@ export const SmartBar: React.FC<SmartBarProps> = ({ onAdd, timezone }) => {
     e.preventDefault();
     e.stopPropagation(); // Prevent form submit
     if (!title.trim()) return;
-    onAdd(title, new Date(), RecurrenceType.NONE, true, { description, links, reminderOffsets: [] });
+    onAdd(title, new Date(), RecurrenceType.NONE, true, { description, links, reminderOffsets: [], tagId: selectedTagId || undefined });
     resetForm();
   };
 
@@ -73,6 +75,7 @@ export const SmartBar: React.FC<SmartBarProps> = ({ onAdd, timezone }) => {
     setShowTimePicker(false);
     setIsExpanded(false);
     setReminderOffsets([15]);
+    setSelectedTagId('');
   };
 
   const toggleReminder = (min: number) => {
@@ -271,6 +274,20 @@ export const SmartBar: React.FC<SmartBarProps> = ({ onAdd, timezone }) => {
         {/* Expanded Details */}
         {effectiveExpanded && (
             <div className="pt-3 border-t border-slate-700/50 grid grid-cols-1 md:grid-cols-2 gap-3 animate-fade-in-down">
+                <div className="space-y-2 col-span-1 md:col-span-2">
+                    <label className="text-[10px] text-slate-400 uppercase font-bold">分类标签</label>
+                    <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => setSelectedTagId('')} className={`px-2 py-1 rounded text-xs border ${!selectedTagId ? 'bg-blue-600 text-white border-blue-500 shadow-md' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'}`}>
+                            <i className="fa-solid fa-wand-magic-sparkles mr-1"></i> AI 智能分类
+                        </button>
+                        {tags.map(t => (
+                             <button key={t.id} type="button" onClick={() => setSelectedTagId(t.id)} className={`px-2 py-1 rounded text-xs border transition-colors ${selectedTagId === t.id ? t.color.replace('bg-', 'bg-').replace('500', '600') + ' text-white border-transparent shadow-md' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'}`}>
+                                 {t.name}
+                             </button>
+                        ))}
+                    </div>
+                </div>
+
                 <div className="space-y-2">
                     <div className="flex gap-2">
                         <textarea 

@@ -178,24 +178,43 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
 
       <div className="flex-1 bg-slate-900 border border-slate-800 rounded-xl flex flex-col overflow-hidden shadow-lg relative">
         {/* Sticky Header */}
-        <div className="absolute top-0 left-0 right-0 bg-slate-900/90 backdrop-blur border-b border-slate-800 p-6 z-10">
-            <h2 className="text-lg font-bold text-white flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <i className="fa-solid fa-stopwatch text-blue-400"></i> 
-                    {new Date(selectedDate).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })} 详情
-                </div>
-                <div className="text-xs font-normal text-slate-400 bg-slate-800 px-3 py-1 rounded-full">
-                    共 {timelineItems.length} 条记录
-                </div>
+        <div className="absolute top-0 left-0 right-0 bg-slate-900/90 backdrop-blur border-b border-slate-800 p-6 z-10 flex justify-between items-center">
+            <h2 className="text-lg font-bold text-white flex items-center gap-3">
+                <i className="fa-solid fa-stopwatch text-blue-400"></i> 
+                {new Date(selectedDate).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })} 详情
             </h2>
+            <div className="text-xs font-normal text-slate-400 bg-slate-800 px-3 py-1 rounded-full flex gap-2 items-center">
+                <span>共 {timelineItems.length} 条记录</span>
+                <div className="hidden md:flex gap-1 ml-2 pl-2 border-l border-slate-600">
+                    <button onClick={() => changeDate(-1)} className="hover:text-white px-1"><i className="fa-solid fa-chevron-left"></i></button>
+                    <button onClick={() => changeDate(1)} className="hover:text-white px-1"><i className="fa-solid fa-chevron-right"></i></button>
+                </div>
+            </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 pt-24 pb-12">
-            <div className="flex justify-center mb-8">
-                <button onClick={() => changeDate(-1)} className="text-xs text-slate-500 hover:text-blue-400 flex flex-col items-center gap-1.5 py-3 px-8 rounded-xl hover:bg-slate-800 transition-colors group border border-dashed border-transparent hover:border-slate-700">
-                    <i className="fa-solid fa-chevron-up group-hover:-translate-y-1 transition-transform"></i>
-                    <span>查看前一天</span>
-                </button>
+        <div 
+            className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-6 pt-24 pb-12 transition-transform duration-300"
+            onWheel={(e) => {
+                // Horizontal swipe (trackpad)
+                if (Math.abs(e.deltaX) > 50) {
+                    if (e.deltaX > 0) changeDate(1);
+                    else changeDate(-1);
+                }
+            }}
+            onTouchStart={(e) => {
+                (e.currentTarget as any).touchStartX = e.touches[0].clientX;
+            }}
+            onTouchEnd={(e) => {
+                const touchStartX = (e.currentTarget as any).touchStartX;
+                if (touchStartX === undefined) return;
+                const touchEndX = e.changedTouches[0].clientX;
+                const diff = touchStartX - touchEndX;
+                if (diff > 50) changeDate(1); // Swipe left -> Next day
+                else if (diff < -50) changeDate(-1); // Swipe right -> Prev day
+            }}
+        >
+            <div className="flex justify-center mb-8 opacity-50 md:hidden text-xs text-slate-500">
+                <i className="fa-solid fa-arrows-left-right mr-2"></i> 左右滑动切换日期
             </div>
 
             <div className="relative border-l-2 border-slate-800 ml-20 space-y-8 min-h-[200px]">
@@ -239,13 +258,6 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
                        </div>
                    ))
                )}
-            </div>
-
-            <div className="flex justify-center mt-12 pt-8 border-t border-slate-800/50">
-                <button onClick={() => changeDate(1)} className="text-xs text-slate-500 hover:text-blue-400 flex flex-col items-center gap-1.5 py-3 px-8 rounded-xl hover:bg-slate-800 transition-colors group border border-dashed border-transparent hover:border-slate-700">
-                    <span>查看后一天</span>
-                    <i className="fa-solid fa-chevron-down group-hover:translate-y-1 transition-transform"></i>
-                </button>
             </div>
         </div>
       </div>
