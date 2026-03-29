@@ -42,8 +42,19 @@ export const formatDateTimeInZone = (dateInput: string | number | Date, timezone
  */
 export const getHourInZone = (date: Date, timezone: string): number => {
     try {
-        const localString = date.toLocaleString('en-US', { timeZone: timezone });
-        return new Date(localString).getHours();
+        const parts = new Intl.DateTimeFormat('en-US', {
+            hour: 'numeric',
+            hour12: false,
+            timeZone: timezone
+        }).formatToParts(date);
+        
+        const hourPart = parts.find(p => p.type === 'hour');
+        if (hourPart) {
+            let hour = parseInt(hourPart.value, 10);
+            if (hour === 24) hour = 0; // en-US sometimes returns 24 for midnight
+            return hour;
+        }
+        return date.getHours();
     } catch (e) {
         return date.getHours();
     }

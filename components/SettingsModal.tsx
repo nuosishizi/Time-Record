@@ -20,6 +20,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
   const [model, setModel] = useState('gemini-2.5-flash');
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [isCustomModel, setIsCustomModel] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -27,7 +28,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
     if (saved) {
       const parsed: AppSettings = JSON.parse(saved);
       setApiKey(parsed.apiKey || '');
-      setModel(parsed.model || 'gemini-2.5-flash');
+      
+      const savedModel = parsed.model || 'gemini-2.5-flash';
+      setModel(savedModel);
+      
+      if (!['gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'].includes(savedModel)) {
+          setIsCustomModel(true);
+      }
+      
       if (parsed.timezone) setTimezone(parsed.timezone);
     }
   }, []);
@@ -35,12 +43,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
   const handleSave = () => {
     const settings: AppSettings = {
       apiKey: apiKey.trim(),
-      model: model,
+      model: model.trim() || 'gemini-2.5-flash',
       timezone: timezone
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     window.location.reload(); // Reload to apply global timezone changes cleanly
     onClose();
+  };
+
+  const handleModelSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const val = e.target.value;
+      if (val === 'custom') {
+          setIsCustomModel(true);
+          setModel('');
+      } else {
+          setIsCustomModel(false);
+          setModel(val);
+      }
   };
 
   const handleExport = () => {
@@ -166,18 +185,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
 
             <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400">模型版本</label>
-                <div className="relative">
-                    <select
-                        value={model}
-                        onChange={(e) => setModel(e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg pl-10 pr-3 py-2.5 outline-none focus:border-blue-500 appearance-none cursor-pointer"
-                    >
-                        <option value="gemini-2.5-flash">Gemini 2.5 Flash (推荐 - 平衡)</option>
-                        <option value="gemini-1.5-pro">Gemini 1.5 Pro (更强推理)</option>
-                        <option value="gemini-1.5-flash">Gemini 1.5 Flash (快速)</option>
-                    </select>
-                    <i className="fa-solid fa-microchip absolute left-3 top-3.5 text-slate-500 text-xs"></i>
-                    <i className="fa-solid fa-chevron-down absolute right-3 top-3.5 text-slate-500 text-xs pointer-events-none"></i>
+                <div className="space-y-2">
+                    <div className="relative">
+                        <select
+                            value={isCustomModel ? 'custom' : model}
+                            onChange={handleModelSelect}
+                            className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg pl-10 pr-3 py-2.5 outline-none focus:border-blue-500 appearance-none cursor-pointer"
+                        >
+                            <option value="gemini-2.5-flash">Gemini 2.5 Flash (推荐 - 平衡)</option>
+                            <option value="gemini-1.5-pro">Gemini 1.5 Pro (更强推理)</option>
+                            <option value="gemini-1.5-flash">Gemini 1.5 Flash (快速)</option>
+                            <option value="custom">自定义输入...</option>
+                        </select>
+                        <i className="fa-solid fa-microchip absolute left-3 top-3.5 text-slate-500 text-xs"></i>
+                        <i className="fa-solid fa-chevron-down absolute right-3 top-3.5 text-slate-500 text-xs pointer-events-none"></i>
+                    </div>
+                    {isCustomModel && (
+                        <div className="relative animate-fade-in-up">
+                            <input 
+                                type="text" 
+                                value={model}
+                                onChange={(e) => setModel(e.target.value)}
+                                placeholder="输入自定义模型名称 (如: gemini-experimental)"
+                                className="w-full bg-slate-800 border border-blue-500/50 text-white rounded-lg pl-10 pr-3 py-2.5 outline-none focus:border-blue-500 transition-colors"
+                                autoFocus
+                            />
+                            <i className="fa-solid fa-pen-to-square absolute left-3 top-3.5 text-blue-500 text-xs"></i>
+                        </div>
+                    )}
                 </div>
             </div>
           </div>
