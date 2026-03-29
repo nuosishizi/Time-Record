@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { TimeSegment, Tag, Task } from '../types';
 
 interface WeeklyHeatmapProps {
@@ -12,6 +12,17 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const daysMap = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
   
+  const [includeTimeInCopy, setIncludeTimeInCopy] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
+
+  // Auto-hide toast
+  useEffect(() => {
+      if (toastMsg) {
+          const timer = setTimeout(() => setToastMsg(''), 3000);
+          return () => clearTimeout(timer);
+      }
+  }, [toastMsg]);
+
   // Generate the last 7 days ending today
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -107,9 +118,11 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
                 });
                 
                 const cellData = Object.entries(taskDurations)
-                    .map(([name, mins]) => `${name}(${mins}m)`);
+                    .map(([name, mins]) => includeTimeInCopy ? `${name}(${mins}m)` : name);
                     
-                row.push(cellData.join(" / "));
+                // Use quotes and true newlines for multi-line cells in spreadsheets
+                const cellContent = cellData.length > 1 ? `"${cellData.join('\n')}"` : cellData[0];
+                row.push(cellContent);
             } else {
                 row.push("");
             }
@@ -118,19 +131,35 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
     }
     
     navigator.clipboard.writeText(tsv).then(() => {
-        alert(`已复制 [${label}] 的排期表，可直接粘贴至 Excel/Google 表格`);
+        setToastMsg(`已复制 [${label}] 的排期表`);
     });
   };
 
   return (
     <div className="p-4 bg-slate-900 rounded-xl border border-slate-800 overflow-x-auto relative">
+      {/* Custom Toast */}
+      {toastMsg && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white px-4 py-2 rounded-lg shadow-xl shadow-green-900/50 text-sm font-medium animate-fade-in-down flex items-center gap-2">
+              <i className="fa-solid fa-circle-check"></i> {toastMsg}
+          </div>
+      )}
+
       <div className="flex justify-between items-center mb-4 sticky left-0 z-20">
         <div>
             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
             <i className="fa-solid fa-border-all"></i> 近7天时间分布
             </h3>
-            <div className="text-xs text-slate-500 mt-1">
-            基于真实专注时长的百分比占比
+            <div className="text-xs text-slate-500 mt-1 flex items-center gap-4">
+                <span>基于真实专注时长的百分比占比</span>
+                <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-300 transition-colors">
+                    <input 
+                        type="checkbox" 
+                        checked={includeTimeInCopy} 
+                        onChange={(e) => setIncludeTimeInCopy(e.target.checked)}
+                        className="accent-blue-500 w-3 h-3"
+                    />
+                    <span>复制时附带耗时 (如 30m)</span>
+                </label>
             </div>
         </div>
         <div className="flex gap-2">
