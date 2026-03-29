@@ -56,26 +56,53 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
     }
   });
 
-  const copyToClipboard = () => {
-    let tsv = "Task Name\tTag\tDate\tStart Time\tEnd Time\tDuration (Minutes)\n";
-    segments.forEach(seg => {
-        const task = tasks.find(t => t.id === seg.taskId);
-        if (!task) return;
-        const tag = tags.find(t => t.id === task.tagId);
-        
-        const start = new Date(seg.startTime);
-        const end = seg.endTime ? new Date(seg.endTime) : new Date();
-        const durationMin = Math.floor((end.getTime() - start.getTime()) / 60000);
-        
-        const dateStr = start.toLocaleDateString();
-        const startTimeStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const endTimeStr = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-        tsv += `${task.title}\t${tag?.name || ''}\t${dateStr}\t${startTimeStr}\t${endTimeStr}\t${durationMin}\n`;
-    });
+  const copyToSpreadsheet = (daysToExport: number) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dates: Date[] = [];
+    for (let i = daysToExport - 1; i >= 0; i--) {
+        const d = new Date(today.getTime() - i * 24 * 3600 * 1000);
+        dates.push(d);
+    }
+    
+    // Header row
+    let tsv = "时间 \\ 日期\t" + dates.map(d => `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`).join("\t") + "\n";
+    
+    // Iterate every 30 mins
+    for (let h = 0; h < 24; h++) {
+        for (let m of [0, 30]) {
+            const timeLabel = `${h}:${m === 0 ? '00' : '30'}`;
+            let row = [timeLabel];
+            
+            for (const d of dates) {
+                const blockStart = new Date(d);
+                blockStart.setHours(h, m, 0, 0);
+                const blockEnd = new Date(blockStart.getTime() + 30 * 60000);
+                
+                // Find segments intersecting this 30-min block
+                const overlappingSegs = segments.filter(seg => {
+                    const s = new Date(seg.startTime);
+                    const e = seg.endTime ? new Date(seg.endTime) : new Date();
+                    return s < blockEnd && e > blockStart;
+                });
+                
+                if (overlappingSegs.length > 0) {
+                    const taskNames = overlappingSegs.map(seg => {
+                        const t = tasks.find(tsk => tsk.id === seg.taskId);
+                        return t ? t.title : '未知';
+                    });
+                    const uniqueNames = Array.from(new Set(taskNames));
+                    row.push(uniqueNames.join(" / "));
+                } else {
+                    row.push("");
+                }
+            }
+            tsv += row.join("\t") + "\n";
+        }
+    }
     
     navigator.clipboard.writeText(tsv).then(() => {
-        alert("已复制到剪贴板，可直接粘贴至 Excel 或 Google 表格");
+        alert(`已复制 ${daysToExport === 1 ? '今日' : '近7天'} 的排期表，可直接粘贴至 Excel/Google 表格`);
     }).catch(err => {
         console.error('Failed to copy: ', err);
     });
@@ -92,13 +119,22 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
             基于真实专注时长的百分比占比
             </div>
         </div>
-        <button 
-            onClick={copyToClipboard}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700 transition-colors flex items-center gap-2"
-            title="复制数据以粘贴到表格"
-        >
-            <i className="fa-regular fa-copy"></i> 复制为表格
-        </button>
+        <div className="flex gap-2">
+            <button 
+                onClick={() => copyToSpreadsheet(1)}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700 transition-colors flex items-center gap-2"
+                title="复制今日数据矩阵"
+            >
+                <i className="fa-regular fa-copy"></i> 复制今日
+            </button>
+            <button 
+                onClick={() => copyToSpreadsheet(7)}
+                className="px-3 py-1.5 bg-blue-900/30 hover:bg-blue-800/50 text-blue-400 text-xs rounded-lg border border-blue-800/50 transition-colors flex items-center gap-2"
+                title="复制最近7天数据矩阵"
+            >
+                <i className="fa-regular fa-calendar-days"></i> 复制本周
+            </button>
+        </div>
       </div>
 
       <div className="min-w-[800px]">

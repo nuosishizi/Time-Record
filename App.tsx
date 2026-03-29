@@ -744,7 +744,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="shrink-0 z-20">
-          <SmartBar onAdd={addTask} timezone={timezone} />
+          <SmartBar onAdd={addTask} timezone={timezone} tags={tags} />
         </div>
       </main>
 
