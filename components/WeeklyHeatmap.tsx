@@ -12,7 +12,7 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const daysMap = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
   
-  const [includeTimeInCopy, setIncludeTimeInCopy] = useState(false);
+  const [includeTimeColumn, setIncludeTimeColumn] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
 
   // Auto-hide toast
@@ -81,11 +81,11 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
   });
 
   const copyToSpreadsheet = (datesToExport: Date[], label: string) => {
-    let tsv = "时间 \\ 日期\t" + datesToExport.map(d => `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${daysMap[d.getDay()]}`).join("\t") + "\n";
+    let tsv = (includeTimeColumn ? "时间 \\ 日期\t" : "") + datesToExport.map(d => `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${daysMap[d.getDay()]}`).join("\t") + "\n";
     
     for (let h = 0; h < 24; h++) {
         const timeLabel = `${h}:00`;
-        let row = [timeLabel];
+        let row = includeTimeColumn ? [timeLabel] : [];
         
         for (const d of datesToExport) {
             const blockStart = new Date(d);
@@ -118,7 +118,14 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
                 });
                 
                 const cellData = Object.entries(taskDurations)
-                    .map(([name, mins]) => includeTimeInCopy ? `${name}(${mins}m)` : name);
+                    .map(([name, mins]) => {
+                        const hr = Math.floor(mins / 60);
+                        const remMin = mins % 60;
+                        let timeStr = "";
+                        if (hr > 0) timeStr += `${hr}小时`;
+                        if (remMin > 0 || hr === 0) timeStr += `${remMin}分钟`;
+                        return `${name}(${timeStr})`; // Time is always included, formatted in Chinese
+                    });
                     
                 // Use quotes and true newlines for multi-line cells in spreadsheets
                 const cellContent = cellData.length > 1 ? `"${cellData.join('\n')}"` : cellData[0];
@@ -154,11 +161,11 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
                 <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-300 transition-colors">
                     <input 
                         type="checkbox" 
-                        checked={includeTimeInCopy} 
-                        onChange={(e) => setIncludeTimeInCopy(e.target.checked)}
+                        checked={includeTimeColumn} 
+                        onChange={(e) => setIncludeTimeColumn(e.target.checked)}
                         className="accent-blue-500 w-3 h-3"
                     />
-                    <span>复制时附带耗时 (如 30m)</span>
+                    <span>复制时附带左侧的时间列 (如 10:00)</span>
                 </label>
             </div>
         </div>

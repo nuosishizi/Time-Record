@@ -37,15 +37,16 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
       return set;
   }, [segments]);
 
-  // Generate a continuous list of dates to render
+  // Generate a continuous list of dates to render (OLDEST TO NEWEST)
   const continuousDaysList = useMemo(() => {
       const today = new Date();
-      // Ensure we always start from "today" in local time
       today.setHours(0,0,0,0);
-      return Array.from({ length: daysToRender }, (_, i) => {
+      const list = Array.from({ length: daysToRender }, (_, i) => {
           const d = new Date(today.getTime() - i * 24 * 3600 * 1000);
           return getLocalDateString(d);
       });
+      // Reverse to show oldest days at the top, newest days (today) at the bottom
+      return list.reverse();
   }, [daysToRender]);
 
   // Group all segments by Date
@@ -77,6 +78,7 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
     });
 
     Object.keys(groups).forEach(k => {
+        // Sort items chronologically within the day (morning -> evening)
         groups[k].sort((a, b) => a.startTimestamp - b.startTimestamp);
     });
 
@@ -103,6 +105,7 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
           if (el && scrollContainerRef.current) {
               const containerTop = scrollContainerRef.current.getBoundingClientRect().top;
               const elTop = el.getBoundingClientRect().top;
+              // Adjust scroll position. If scrolling to today, it will be at the bottom.
               scrollContainerRef.current.scrollBy({
                   top: elTop - containerTop - 20, 
                   behavior: 'smooth'
@@ -168,19 +171,38 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
       return () => observer.disconnect();
   }, [daysToRender, groupedTimeline]);
 
-  // Infinite Scroll Observer
+  // Infinite Scroll Observer (Load older days at TOP now)
   useEffect(() => {
       const loader = loaderRef.current;
       if (!loader) return;
 
       const observer = new IntersectionObserver((entries) => {
           if (entries[0].isIntersecting) {
-              setDaysToRender(prev => prev + 14); // Load 2 more weeks
+              // When loading older days at the top, we need to maintain scroll position
+              // so the viewport doesn't violently jump when new content is injected above.
+              const scrollEl = scrollContainerRef.current;
+              const oldScrollHeight = scrollEl ? scrollEl.scrollHeight : 0;
+              
+              setDaysToRender(prev => prev + 14);
+              
+              if (scrollEl) {
+                  setTimeout(() => {
+                      const newScrollHeight = scrollEl.scrollHeight;
+                      scrollEl.scrollTop += (newScrollHeight - oldScrollHeight);
+                  }, 0);
+              }
           }
       }, { root: scrollContainerRef.current, rootMargin: '200px' });
 
       observer.observe(loader);
       return () => observer.disconnect();
+  }, []);
+
+  // Initial scroll to bottom (Today)
+  useEffect(() => {
+      if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+      }
   }, []);
 
   return (
@@ -266,6 +288,11 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
             ref={scrollContainerRef}
             className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-6 relative"
         >
+            {/* Invisible loader element to trigger infinite scroll at the top */}
+            <div ref={loaderRef} className="h-20 flex items-center justify-center text-slate-500 text-xs">
+                <i className="fa-solid fa-circle-notch animate-spin mr-2"></i> 加载更早的记录...
+            </div>
+
             <div className="space-y-16 pb-12">
                 {continuousDaysList.map(dateStr => {
                     const items = groupedTimeline[dateStr] || [];
@@ -320,11 +347,6 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
                         </div>
                     </div>
                 )})}
-            </div>
-            
-            {/* Invisible loader element to trigger infinite scroll */}
-            <div ref={loaderRef} className="h-20 flex items-center justify-center text-slate-500 text-xs">
-                <i className="fa-solid fa-circle-notch animate-spin mr-2"></i> 加载更早的记录...
             </div>
         </div>
       </div>
