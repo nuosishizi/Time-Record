@@ -1,0 +1,769 @@
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Sidebar } from './components/Sidebar';
+import { TaskItem } from './components/TaskItem';
+import { SmartBar } from './components/SmartBar';
+import { FocusWidget } from './components/FocusWidget';
+import { WeeklyHeatmap } from './components/WeeklyHeatmap';
+import { TagManager } from './components/TagManager';
+import { AnalyticsView } from './components/AnalyticsView';
+import { DailyTimeline } from './components/DailyTimeline';
+import { WorldClockView } from './components/WorldClockView';
+import { ReminderModal } from './components/ReminderModal';
+import { EditTaskModal } from './components/EditTaskModal';
+import { DeleteConfirmModal } from './components/DeleteConfirmModal';
+import { ResumeModal } from './components/ResumeModal';
+import { SettingsModal } from './components/SettingsModal';
+import { RetroactiveModal } from './components/RetroactiveModal';
+import { Task, TaskStatus, TimeSegment, RecurrenceType, Tag, AIReminder, Priority } from './types';
+import { classifyTaskWithAI, generateTaskMessage } from './services/geminiService';
+
+const DEFAULT_TAGS: Tag[] = [
+  { id: 't-work', name: '工作', color: 'bg-blue-500', description: '代码, 会议, 文档, 业务' },
+  { id: 't-study', name: '学习', color: 'bg-indigo-500', description: '阅读, 课程, 研究' },
+  { id: 't-life', name: '生活', color: 'bg-orange-500', description: '吃饭, 睡觉, 家务, 购物' },
+  { id: 't-spiritual', name: '灵生活', color: 'bg-purple-500', description: '祷告, 读神话, 写文章, 聚会, 听讲道' },
+  { id: 't-health', name: '健康', color: 'bg-green-500', description: '运动, 健身, 跑步' },
+  { id: 't-play', name: '娱乐', color: 'bg-red-500', description: '游戏, 电影, 音乐' },
+];
+
+const App: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'tasks' | 'heatmap' | 'analytics' | 'timeline' | 'worldclock'>('tasks');
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [segments, setSegments] = useState<TimeSegment[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showTagManager, setShowTagManager] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showRetroactive, setShowRetroactive] = useState(false);
+  const [focusMode, setFocusMode] = useState<string | null>(null);
+  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+
+  const [interruptedTaskId, setInterruptedTaskId] = useState<string | null>(null);
+  const [aiPopup, setAiPopup] = useState<AIReminder | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null);
+  const [resumeTask, setResumeTask] = useState<Task | null>(null);
+  
+  const audioCtx = useRef<AudioContext | null>(null);
+
+// --- Initialization ---
+  const [isLoaded, setIsLoaded] = useState(false); // 新增：防止初始数据被覆盖的锁
+  useEffect(() => {
+    // 1. Load Tags
+    const savedTags = localStorage.getItem('mindflow_tags_v7');
+    if (savedTags) {
+      setTags(JSON.parse(savedTags));
+    } else {
+      setTags(DEFAULT_TAGS);
+    }
+
+    // 2. Load Tasks and Segments together to fix unexpected closes
+    let loadedTasks: Task[] = [];
+    let loadedSegments: TimeSegment[] = [];
+
+    const savedTasks = localStorage.getItem('mindflow_tasks_v7');
+    if (savedTasks) {
+      try {
+        loadedTasks = JSON.parse(savedTasks);
+      } catch (e) {
+        console.error("Failed to parse tasks", e);
+      }
+    }
+
+    const savedSegments = localStorage.getItem('mindflow_segments_v7');
+    if (savedSegments) {
+        try {
+            loadedSegments = JSON.parse(savedSegments);
+        } catch (e) {}
+    }
+
+    // Fix open segments (app closed while task was running)
+    const now = Date.now();
+    let needsUpdate = false;
+
+    loadedSegments = loadedSegments.map(seg => {
+        if (seg.endTime === null) {
+            needsUpdate = true;
+            // Cap at 2 hours or current time
+            const cappedEndTime = Math.min(now, seg.startTime + 2 * 3600 * 1000);
+            
+            // Add duration to corresponding task
+            const task = loadedTasks.find(t => t.id === seg.taskId);
+            if (task) {
+                task.totalDuration += Math.floor((cappedEndTime - seg.startTime) / 1000);
+                task.status = TaskStatus.PAUSED; // Ensure task is paused
+            }
+            
+            return { ...seg, endTime: cappedEndTime };
+        }
+        return seg;
+    });
+
+    setTasks(loadedTasks);
+    setSegments(loadedSegments);
+
+    // 4. Request Permissions
+    if (Notification.permission !== 'granted') Notification.requestPermission();
+    audioCtx.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+    // Fix Audio autoplay policy by resuming on first interaction
+    const resumeAudio = () => {
+      if (audioCtx.current && audioCtx.current.state === 'suspended') {
+        audioCtx.current.resume();
+      }
+      document.removeEventListener('click', resumeAudio);
+      document.removeEventListener('keydown', resumeAudio);
+    };
+    document.addEventListener('click', resumeAudio);
+    document.addEventListener('keydown', resumeAudio);
+
+    // ✅ 新增：标记加载已完成，允许后续的保存操作
+    setIsLoaded(true); 
+  }, []);
+
+  useEffect(() => {
+    // ❌ 如果还没加载完，或者数据是空的（且不是刚初始化），就不要保存，防止覆盖
+    if (!isLoaded) return;
+
+    localStorage.setItem('mindflow_tasks_v7', JSON.stringify(tasks));
+    localStorage.setItem('mindflow_segments_v7', JSON.stringify(segments));
+    localStorage.setItem('mindflow_tags_v7', JSON.stringify(tags));
+  }, [tasks, segments, tags, isLoaded]); // 记得把 isLoaded 加到依赖列表里
+
+  // --- Reminder System ---
+  useEffect(() => {
+    const checkReminders = async () => {
+        const now = Date.now();
+        
+        for (const task of tasks) {
+            if (task.status === TaskStatus.COMPLETED || task.status === TaskStatus.ARCHIVED) continue;
+
+            const planTime = new Date(task.planTime).getTime();
+            
+            for (const offsetMin of task.reminderOffsets) {
+                const triggerTime = planTime - (offsetMin * 60 * 1000);
+                if (now >= triggerTime && now < triggerTime + 60000) {
+                     if (!task.lastRemindedAt || (now - task.lastRemindedAt > 60000)) {
+                         triggerAlert(task, 'reminder', offsetMin);
+                         return;
+                     }
+                }
+            }
+
+            if (task.status === TaskStatus.WAITING && now > planTime && now < planTime + 60000) {
+                if (!task.lastRemindedAt || (now - task.lastRemindedAt > 60000)) {
+                    triggerAlert(task, 'alert', 0);
+                }
+            }
+        }
+    };
+
+    const interval = setInterval(checkReminders, 30000); 
+    return () => clearInterval(interval);
+  }, [tasks]);
+
+  const triggerAlert = async (task: Task, type: 'reminder' | 'alert', offsetMin: number) => {
+      playSound('alert');
+      const msg = await generateTaskMessage(task, 'reminder');
+      
+      const sortedWaiting = tasks
+        .filter(t => t.status === TaskStatus.WAITING && t.id !== task.id && new Date(t.planTime).getTime() > Date.now())
+        .sort((a,b) => new Date(a.planTime).getTime() - new Date(b.planTime).getTime());
+      
+      const nextTitle = sortedWaiting[0]?.title;
+
+      setAiPopup({
+          show: true,
+          message: offsetMin > 0 ? `${msg} (还有 ${offsetMin} 分钟)` : `时间到了！该开始 "${task.title}" 了。`,
+          type: type,
+          relatedTaskId: task.id,
+          nextTaskTitle: nextTitle
+      });
+
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, lastRemindedAt: Date.now() } : t));
+  };
+
+
+  const playSound = (type: 'start' | 'complete' | 'alert') => {
+    if (!audioCtx.current) return;
+    const osc = audioCtx.current.createOscillator();
+    const gain = audioCtx.current.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.current.destination);
+
+    if (type === 'start') {
+      osc.frequency.setValueAtTime(400, audioCtx.current.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(800, audioCtx.current.currentTime + 0.1);
+    } else if (type === 'complete') {
+      osc.frequency.setValueAtTime(600, audioCtx.current.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.current.currentTime + 0.2);
+    } else {
+      osc.frequency.setValueAtTime(800, audioCtx.current.currentTime);
+      osc.type = 'triangle';
+      osc.frequency.linearRampToValueAtTime(600, audioCtx.current.currentTime + 0.3);
+      osc.frequency.linearRampToValueAtTime(800, audioCtx.current.currentTime + 0.6);
+    }
+
+    gain.gain.setValueAtTime(0.1, audioCtx.current.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.current.currentTime + (type === 'alert' ? 0.8 : 0.3));
+    osc.start();
+    osc.stop(audioCtx.current.currentTime + (type === 'alert' ? 0.8 : 0.3));
+  };
+
+  const handleExportCSV = () => {
+    const header = "Task Name,Tag,Start Time,End Time,Duration,Duration(Minutes)\n";
+    const rows = segments.map(seg => {
+        const task = tasks.find(t => t.id === seg.taskId);
+        if (!task) return null;
+        const tag = tags.find(t => t.id === task.tagId);
+        
+        const start = new Date(seg.startTime);
+        const end = seg.endTime ? new Date(seg.endTime) : new Date();
+        const durationMin = Math.floor((end.getTime() - start.getTime()) / 60000);
+        
+        const h = Math.floor(durationMin / 60);
+        const m = durationMin % 60;
+        const durationStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+
+        return `"${task.title}","${tag?.name || ''}","${start.toLocaleString()}","${seg.endTime ? new Date(seg.endTime).toLocaleString() : 'Running'}","${durationStr}",${durationMin}`;
+    }).filter(row => row !== null).join("\n");
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + header + rows;
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+    
+    link.setAttribute("download", `MindFlow_Record_${timestamp}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleClearData = () => {
+      setTasks([]);
+      setSegments([]);
+      setTags(DEFAULT_TAGS);
+      setInterruptedTaskId(null);
+      localStorage.removeItem('mindflow_tasks_v7');
+      localStorage.removeItem('mindflow_segments_v7');
+      localStorage.setItem('mindflow_tags_v7', JSON.stringify(DEFAULT_TAGS));
+  };
+
+  const handleImportData = (data: { tasks: Task[], tags: Tag[], segments: TimeSegment[] }) => {
+      if (data.tasks) setTasks(data.tasks);
+      if (data.tags) setTags(data.tags);
+      if (data.segments) setSegments(data.segments);
+  };
+
+// --- Task CRUD Logic ---
+
+  const addTask = async (title: string, date: Date, recurrence: RecurrenceType, isInterruption: boolean, details: { description: string, links: string, reminderOffsets: number[] }) => {
+    const tempId = crypto.randomUUID();
+    
+    // Auto-pause if interruption
+    if (isInterruption) {
+      const currentRunning = tasks.find(t => t.status === TaskStatus.RUNNING);
+      if (currentRunning) {
+        setInterruptedTaskId(currentRunning.id); // Save ID to resume later
+        await changeTaskStatus(currentRunning.id, TaskStatus.PAUSED);
+      }
+    }
+
+    // ✅ 修复点 1: 安全获取 tagId (防止 tags 为空时报错)
+    // 如果 tags 还没加载出来，就硬编码使用 't-work' 或第一个默认标签
+    const safeTagId = (tags && tags.length > 0) ? tags[0].id : 't-work';
+
+    const newTask: Task = {
+      id: tempId,
+      title,
+      tagId: safeTagId, // ✅ 使用安全 ID
+      status: isInterruption ? TaskStatus.RUNNING : TaskStatus.WAITING,
+      planTime: date.toISOString(),
+      recurrence,
+      priority: Priority.MEDIUM,
+      description: details.description,
+      links: details.links,
+      reminderOffsets: details.reminderOffsets,
+      createdAt: Date.now(),
+      totalDuration: 0
+    };
+
+    setTasks(prev => [...prev, newTask]);
+
+    if (isInterruption) {
+      const newSegment: TimeSegment = {
+        id: crypto.randomUUID(),
+        taskId: newTask.id,
+        startTime: Date.now(),
+        endTime: null
+      };
+      setSegments(prev => [...prev, newSegment]);
+      playSound('start');
+    }
+
+    // 异步调用 AI 分类，不阻塞界面
+    classifyTaskWithAI(title, tags)
+      .then(classifiedTagId => {
+         if (classifiedTagId) {
+            setTasks(prev => prev.map(t => t.id === tempId ? { ...t, tagId: classifiedTagId } : t));
+         }
+      })
+      .catch(e => console.log("AI classification skipped (offline or error)"));
+
+    // ✅ 修复点 2: 必须返回 newTask，否则 SmartBar 里的后续逻辑会找不到 id 报错
+    return newTask; 
+  };
+  
+  const addRetroactiveTask = (title: string, tagId: string, startTime: number, endTime: number, description: string) => {
+    const taskId = crypto.randomUUID();
+    const durationSec = Math.floor((endTime - startTime) / 1000);
+    
+    const newTask: Task = {
+      id: taskId,
+      title,
+      tagId,
+      status: TaskStatus.COMPLETED,
+      planTime: new Date(startTime).toISOString(), 
+      recurrence: RecurrenceType.NONE,
+      priority: Priority.MEDIUM,
+      description: description,
+      links: '',
+      reminderOffsets: [],
+      createdAt: Date.now(),
+      totalDuration: durationSec,
+      completedAt: endTime
+    };
+
+    const newSegment: TimeSegment = {
+      id: crypto.randomUUID(),
+      taskId,
+      startTime,
+      endTime
+    };
+
+    setTasks(prev => [...prev, newTask]);
+    setSegments(prev => [...prev, newSegment]);
+    setShowRetroactive(false);
+  };
+
+  const handleUpdateTask = (updatedTask: Task) => {
+    setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+    setEditingTask(null);
+  };
+
+  const handleDeleteTask = (scope: 'single' | 'all') => {
+    if (!deletingTask) return;
+    
+    if (scope === 'single') {
+        setTasks(prev => prev.filter(t => t.id !== deletingTask.id));
+        setSegments(prev => prev.filter(s => s.taskId !== deletingTask.id));
+    } else {
+        const title = deletingTask.title;
+        const idsToDelete = tasks.filter(t => t.title === title).map(t => t.id);
+        setTasks(prev => prev.filter(t => t.title !== title));
+        setSegments(prev => prev.filter(s => !idsToDelete.includes(s.taskId)));
+    }
+    setDeletingTask(null);
+  };
+
+  const changeTaskStatus = async (id: string, newStatus: TaskStatus) => {
+    const now = Date.now();
+    
+    let taskToPauseId: string | undefined;
+    if (newStatus === TaskStatus.RUNNING) {
+       const runningTask = tasks.find(t => t.status === TaskStatus.RUNNING && t.id !== id);
+       if (runningTask) {
+           taskToPauseId = runningTask.id;
+           setInterruptedTaskId(runningTask.id); 
+       }
+    }
+
+    setSegments(prev => {
+      const updated = [...prev];
+      if (taskToPauseId) {
+          const pauseSegIndex = updated.findIndex(s => s.taskId === taskToPauseId && s.endTime === null);
+          if (pauseSegIndex !== -1) {
+              updated[pauseSegIndex] = { ...updated[pauseSegIndex], endTime: now };
+          }
+      }
+      const activeSegmentIndex = updated.findIndex(s => s.taskId === id && s.endTime === null);
+      if ((newStatus === TaskStatus.PAUSED || newStatus === TaskStatus.COMPLETED) && activeSegmentIndex !== -1) {
+        updated[activeSegmentIndex] = { ...updated[activeSegmentIndex], endTime: now };
+      }
+      if (newStatus === TaskStatus.RUNNING) {
+        updated.push({ id: crypto.randomUUID(), taskId: id, startTime: now, endTime: null });
+      }
+      return updated;
+    });
+
+    setTasks(prev => prev.map(t => {
+      if (taskToPauseId && t.id === taskToPauseId) {
+          const currentSeg = segments.find(s => s.taskId === taskToPauseId && s.endTime === null);
+          const added = currentSeg ? Math.floor((now - currentSeg.startTime) / 1000) : 0;
+          return { ...t, status: TaskStatus.PAUSED, totalDuration: t.totalDuration + added };
+      }
+      if (t.id === id) {
+          let addedDuration = 0;
+          if (newStatus === TaskStatus.PAUSED || newStatus === TaskStatus.COMPLETED) {
+             const activeSegment = segments.find(s => s.taskId === id && s.endTime === null);
+             if (activeSegment) {
+                 addedDuration = Math.floor((now - activeSegment.startTime) / 1000);
+             }
+          }
+          return {
+            ...t,
+            status: newStatus,
+            completedAt: newStatus === TaskStatus.COMPLETED ? now : undefined,
+            totalDuration: t.totalDuration + addedDuration
+          };
+      }
+      return t;
+    }));
+    
+    const task = tasks.find(t => t.id === id);
+    if (newStatus === TaskStatus.COMPLETED && task) {
+       playSound('complete');
+       if (task.recurrence !== RecurrenceType.NONE) handleRecurrence(task);
+       if (interruptedTaskId && interruptedTaskId !== id) {
+           const prevTask = tasks.find(t => t.id === interruptedTaskId);
+           if (prevTask && prevTask.status !== TaskStatus.COMPLETED) {
+               setResumeTask(prevTask);
+           } else {
+               setInterruptedTaskId(null);
+           }
+       }
+       const msg = await generateTaskMessage(task, 'next-step');
+       setAiPopup({ show: true, message: msg, type: 'suggestion' });
+       setTimeout(() => setAiPopup(null), 8000);
+    } else if (newStatus === TaskStatus.RUNNING) {
+       playSound('start');
+    }
+  };
+
+  const handleRecurrence = (task: Task) => {
+    const nextDate = new Date(task.planTime);
+    do {
+      if (task.recurrence === RecurrenceType.DAILY) nextDate.setDate(nextDate.getDate() + 1);
+      else if (task.recurrence === RecurrenceType.WEEKLY) nextDate.setDate(nextDate.getDate() + 7);
+      else if (task.recurrence === RecurrenceType.MONTHLY) nextDate.setMonth(nextDate.getMonth() + 1);
+      else break;
+    } while (nextDate.getTime() <= Date.now());
+
+    const nextTask: Task = {
+      ...task,
+      id: crypto.randomUUID(),
+      status: TaskStatus.WAITING,
+      planTime: nextDate.toISOString(),
+      createdAt: Date.now(),
+      totalDuration: 0,
+      completedAt: undefined,
+      lastRemindedAt: undefined
+    };
+    setTasks(prev => [...prev, nextTask]);
+  };
+
+  const snoozeTask = () => {
+      if (!aiPopup?.relatedTaskId) return;
+      setAiPopup(null);
+      setTimeout(() => {
+          const task = tasks.find(t => t.id === aiPopup.relatedTaskId);
+          if (task && task.status === TaskStatus.WAITING) {
+             setAiPopup({ ...aiPopup, message: `(推迟) ${aiPopup.message}` });
+             playSound('alert');
+          }
+      }, 5 * 60 * 1000); 
+  };
+
+  const getLocalDateString = (dateInput: string | Date, tz: string) => {
+    try {
+      const formatted = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(new Date(dateInput));
+      return formatted; // en-CA format is YYYY-MM-DD
+    } catch {
+      const d = new Date(dateInput);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+  };
+
+  const getDayGroup = (dateStr: string) => {
+      const targetDate = getLocalDateString(dateStr, timezone);
+      const todayDate = getLocalDateString(new Date(), timezone);
+      
+      const tmrw = new Date();
+      tmrw.setDate(tmrw.getDate() + 1);
+      const tmrwDate = getLocalDateString(tmrw, timezone);
+
+      if (targetDate === todayDate) return 'Today';
+      if (targetDate === tmrwDate) return 'Tomorrow';
+      if (targetDate < todayDate) return 'Today'; // Treat overdue past tasks as Today to bring them to attention
+      return 'Future';
+  };
+
+  const runningTasks = tasks.filter(t => t.status === TaskStatus.RUNNING);
+  const completedTasks = tasks.filter(t => t.status === TaskStatus.COMPLETED);
+  const waitingTasks = tasks.filter(t => t.status === TaskStatus.WAITING || t.status === TaskStatus.PAUSED).sort((a,b) => new Date(a.planTime).getTime() - new Date(b.planTime).getTime());
+
+  const tasksToday = waitingTasks.filter(t => getDayGroup(t.planTime) === 'Today');
+  const tasksTomorrow = waitingTasks.filter(t => getDayGroup(t.planTime) === 'Tomorrow');
+  const tasksFuture = waitingTasks.filter(t => getDayGroup(t.planTime) === 'Future');
+
+  const focusedTask = tasks.find(t => t.id === focusMode);
+
+  return (
+    <div className="flex h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden">
+      {showSettings && (
+          <SettingsModal 
+              onClose={() => setShowSettings(false)} 
+              tasks={tasks}
+              tags={tags}
+              segments={segments}
+              onImportData={handleImportData}
+              onClearData={handleClearData}
+          />
+      )}
+
+      {showRetroactive && (
+        <RetroactiveModal
+            tags={tags}
+            onSave={addRetroactiveTask}
+            onClose={() => setShowRetroactive(false)}
+        />
+      )}
+
+      {showTagManager && (
+        <TagManager 
+          tags={tags} 
+          onUpdateTags={setTags} 
+          onClose={() => setShowTagManager(false)} 
+        />
+      )}
+
+      {editingTask && (
+        <EditTaskModal 
+            task={editingTask} 
+            tags={tags} 
+            onSave={handleUpdateTask} 
+            onClose={() => setEditingTask(null)} 
+        />
+      )}
+
+      {deletingTask && (
+        <DeleteConfirmModal 
+            taskTitle={deletingTask.title}
+            count={tasks.filter(t => t.title === deletingTask.title).length}
+            onConfirm={handleDeleteTask}
+            onCancel={() => setDeletingTask(null)}
+        />
+      )}
+      
+      {resumeTask && (
+         <ResumeModal 
+           taskTitle={resumeTask.title}
+           onConfirm={() => {
+              changeTaskStatus(resumeTask.id, TaskStatus.RUNNING);
+              setResumeTask(null);
+              setInterruptedTaskId(null);
+           }}
+           onCancel={() => {
+              setResumeTask(null);
+              setInterruptedTaskId(null);
+           }}
+         />
+      )}
+      
+      {aiPopup && aiPopup.type !== 'suggestion' && (
+          <ReminderModal 
+            message={aiPopup.message} 
+            nextTaskPreview={aiPopup.nextTaskTitle}
+            onClose={() => setAiPopup(null)} 
+            onSnooze={snoozeTask}
+          />
+      )}
+
+      {focusMode && focusedTask && (
+        <FocusWidget 
+          task={focusedTask}
+          currentSegmentStartTime={segments.find(s => s.taskId === focusedTask.id && s.endTime === null)?.startTime}
+          onStop={() => { changeTaskStatus(focusedTask.id, TaskStatus.PAUSED); setFocusMode(null); }}
+          onComplete={() => { changeTaskStatus(focusedTask.id, TaskStatus.COMPLETED); setFocusMode(null); }}
+          onExit={() => setFocusMode(null)}
+        />
+      )}
+
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onOpenTagManager={() => setShowTagManager(true)}
+        onExportCSV={handleExportCSV}
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenRetroactive={() => setShowRetroactive(true)}
+      />
+
+      {/* Main Content */}
+      <main className={`flex-1 flex flex-col relative transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
+        
+        <header className="h-20 flex items-center justify-between px-8 border-b border-slate-800 bg-slate-900/50 backdrop-blur z-20">
+          <h2 className="text-xl font-bold text-white">
+            {activeTab === 'tasks' ? '我的执行台' : activeTab === 'timeline' ? '每日详情 & 分析' : activeTab === 'worldclock' ? '世界时钟对照表' : activeTab === 'heatmap' ? '周视图复盘' : 'AI 效率分析'}
+          </h2>
+          <div className="flex gap-4">
+             {runningTasks.length > 0 && (
+               <button 
+                onClick={() => setFocusMode(runningTasks[0].id)}
+                className="px-3 py-1.5 bg-blue-600/20 text-blue-400 border border-blue-500/50 rounded-lg text-sm hover:bg-blue-600 hover:text-white transition-all"
+               >
+                 <i className="fa-solid fa-expand mr-2"></i> 进入专注模式
+               </button>
+             )}
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-6 pb-32 custom-scrollbar">
+          {activeTab === 'tasks' && (
+            <div className="max-w-4xl mx-auto space-y-8">
+              {runningTasks.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-green-400 uppercase tracking-wider flex items-center gap-2">
+                    <i className="fa-solid fa-fire"></i> 正在进行
+                  </h3>
+                  {runningTasks.map(t => (
+                    <TaskItem 
+                      key={t.id} 
+                      task={t} 
+                      tag={tags.find(tag => tag.id === t.tagId)!} 
+                      currentSegmentStartTime={segments.find(s => s.taskId === t.id && s.endTime === null)?.startTime}
+                      onStatusChange={changeTaskStatus} 
+                      onEdit={setEditingTask}
+                      onDelete={setDeletingTask}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-6">
+                 {tasksToday.length > 0 && (
+                     <div className="space-y-3">
+                        <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider pl-1 border-l-2 border-blue-500">今天任务</h3>
+                        {tasksToday.map(t => (
+                            <TaskItem 
+                                key={t.id} 
+                                task={t} 
+                                tag={tags.find(tag => tag.id === t.tagId)!} 
+                                onStatusChange={changeTaskStatus} 
+                                onEdit={setEditingTask}
+                                onDelete={setDeletingTask}
+                            />
+                        ))}
+                     </div>
+                 )}
+                 
+                 {tasksTomorrow.length > 0 && (
+                     <div className="space-y-3">
+                        <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider pl-1 border-l-2 border-purple-500">明天任务</h3>
+                        {tasksTomorrow.map(t => (
+                            <TaskItem 
+                                key={t.id} 
+                                task={t} 
+                                tag={tags.find(tag => tag.id === t.tagId)!} 
+                                onStatusChange={changeTaskStatus} 
+                                onEdit={setEditingTask}
+                                onDelete={setDeletingTask}
+                            />
+                        ))}
+                     </div>
+                 )}
+                 
+                 {tasksFuture.length > 0 && (
+                     <div className="space-y-3">
+                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1 border-l-2 border-slate-500">后续计划</h3>
+                        {tasksFuture.map(t => (
+                            <TaskItem 
+                                key={t.id} 
+                                task={t} 
+                                tag={tags.find(tag => tag.id === t.tagId)!} 
+                                onStatusChange={changeTaskStatus} 
+                                onEdit={setEditingTask}
+                                onDelete={setDeletingTask}
+                            />
+                        ))}
+                     </div>
+                 )}
+
+                 {waitingTasks.length === 0 && runningTasks.length === 0 && (
+                   <div className="text-center py-12 border-2 border-dashed border-slate-800 rounded-xl">
+                     <p className="text-slate-600">空空如也，从下方 Smart Bar 添加一个任务吧</p>
+                   </div>
+                 )}
+              </div>
+
+              {completedTasks.length > 0 && (
+                 <div className="space-y-4 pt-8 border-t border-slate-800/50">
+                    <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">已完成</h3>
+                    {completedTasks.map(t => (
+                      <TaskItem 
+                        key={t.id} 
+                        task={t} 
+                        tag={tags.find(tag => tag.id === t.tagId)!} 
+                        onStatusChange={changeTaskStatus} 
+                        onEdit={setEditingTask}
+                        onDelete={setDeletingTask}
+                      />
+                    ))}
+                 </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'timeline' && (
+              <DailyTimeline tasks={tasks} segments={segments} tags={tags} />
+          )}
+
+          {activeTab === 'worldclock' && (
+              <WorldClockView baseTimezone={timezone} />
+          )}
+
+          {activeTab === 'heatmap' && (
+            <div className="max-w-5xl mx-auto">
+              <WeeklyHeatmap segments={segments} tasks={tasks} tags={tags} />
+            </div>
+          )}
+          
+          {activeTab === 'analytics' && (
+            <AnalyticsView tasks={tasks} tags={tags} segments={segments} />
+          )}
+        </div>
+
+        <div className="shrink-0 z-20">
+          <SmartBar onAdd={addTask} timezone={timezone} />
+        </div>
+      </main>
+
+      {aiPopup && aiPopup.type === 'suggestion' && (
+        <div className="fixed bottom-24 right-8 max-w-sm bg-slate-800 border border-green-500/50 shadow-2xl shadow-green-900/50 p-4 rounded-xl animate-fade-in-up z-50 flex gap-4">
+          <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center shrink-0">
+            <i className="fa-solid fa-check text-white"></i>
+          </div>
+          <div>
+             <h4 className="font-bold text-white text-sm mb-1">干得漂亮！</h4>
+             <p className="text-sm text-slate-300">{aiPopup.message}</p>
+          </div>
+          <button onClick={() => setAiPopup(null)} className="text-slate-500 hover:text-white self-start">
+            <i className="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;
