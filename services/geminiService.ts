@@ -183,8 +183,9 @@ export const analyzeScheduleMatrix = async (matrixText: string): Promise<string>
           contents: prompt,
         });
         return response.text?.trim() || "暂无分析建议。";
-    } catch (error) {
+    } catch (error: any) {
         console.error("Gemini Matrix Error", error);
-        return "AI 分析服务繁忙或未配置 API Key，请稍后重试。";
+        let errMsg = error?.message || String(error);
+        return `AI 分析失败，请检查设置中的 API Key 和模型名称。\n错误详情: ${errMsg}`;
     }
 }

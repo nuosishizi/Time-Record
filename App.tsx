@@ -50,6 +50,15 @@ const App: React.FC = () => {
 // --- Initialization ---
   const [isLoaded, setIsLoaded] = useState(false); // 新增：防止初始数据被覆盖的锁
   useEffect(() => {
+    // 0. Load Settings (Timezone)
+    const savedSettings = localStorage.getItem('mindflow_settings_v7');
+    if (savedSettings) {
+        try {
+            const parsed = JSON.parse(savedSettings);
+            if (parsed.timezone) setTimezone(parsed.timezone);
+        } catch (e) {}
+    }
+
     // 1. Load Tags
     const savedTags = localStorage.getItem('mindflow_tags_v7');
     if (savedTags) {
