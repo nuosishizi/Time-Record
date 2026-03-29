@@ -49,6 +49,8 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
       return list.reverse();
   }, [daysToRender]);
 
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Group all segments by Date
   const groupedTimeline = useMemo(() => {
     const groups: Record<string, any[]> = {};
@@ -62,9 +64,7 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
         
         const dateStr = getLocalDateString(start);
         
-        if (!groups[dateStr]) groups[dateStr] = [];
-        
-        groups[dateStr].push({
+        const item = {
             id: seg.id,
             taskTitle: task?.title || 'Unknown Task',
             tagName: tag?.name || 'Uncategorized',
@@ -74,7 +74,17 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
             duration: durationMin,
             isRunning: !seg.endTime,
             startTimestamp: start.getTime()
-        });
+        };
+
+        if (searchQuery) {
+            if (!item.taskTitle.toLowerCase().includes(searchQuery.toLowerCase()) && 
+                !item.tagName.toLowerCase().includes(searchQuery.toLowerCase())) {
+                return; // Skip if it doesn't match the search
+            }
+        }
+
+        if (!groups[dateStr]) groups[dateStr] = [];
+        groups[dateStr].push(item);
     });
 
     Object.keys(groups).forEach(k => {
@@ -83,7 +93,7 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
     });
 
     return groups;
-  }, [segments, tasks, tags]);
+  }, [segments, tasks, tags, searchQuery]);
 
   const scrollToDate = (dateStr: string) => {
       setSelectedDate(dateStr);
@@ -284,9 +294,26 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
       </div>
 
       <div className="flex-1 bg-slate-900 border border-slate-800 rounded-xl flex flex-col overflow-hidden shadow-lg relative">
+        <div className="absolute top-4 right-6 z-30">
+             <div className="relative">
+                 <i className="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                 <input 
+                     type="text" 
+                     placeholder="搜索历史任务..."
+                     value={searchQuery}
+                     onChange={e => setSearchQuery(e.target.value)}
+                     className="bg-slate-800 border border-slate-700 rounded-full pl-8 pr-4 py-1.5 text-xs text-white outline-none focus:border-blue-500 w-48 transition-all focus:w-64"
+                 />
+                 {searchQuery && (
+                     <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+                         <i className="fa-solid fa-xmark text-xs"></i>
+                     </button>
+                 )}
+             </div>
+        </div>
         <div 
             ref={scrollContainerRef}
-            className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-6 relative"
+            className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-6 relative pt-16"
         >
             {/* Invisible loader element to trigger infinite scroll at the top */}
             <div ref={loaderRef} className="h-20 flex items-center justify-center text-slate-500 text-xs">

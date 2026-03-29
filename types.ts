@@ -58,9 +58,10 @@ export interface Task {
 export interface AIReminder {
   show: boolean;
   message: string;
-  type: 'reminder' | 'suggestion' | 'alert'; // 'alert' for missed start
+  type: 'reminder' | 'suggestion' | 'alert' | 'undo'; // added undo type
   relatedTaskId?: string;
   nextTaskTitle?: string; // For preview
+  undoData?: { tasks: Task[]; segments: TimeSegment[] };
 }
 
 export interface AnalysisResult {

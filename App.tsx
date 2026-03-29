@@ -345,8 +345,79 @@ const App: React.FC = () => {
       endTime
     };
 
-    setTasks(prev => [...prev, newTask]);
-    setSegments(prev => [...prev, newSegment]);
+    // Save history for UNDO
+    const historyState = { tasks: [...tasks], segments: [...segments] };
+
+    let nextSegments: TimeSegment[] = [];
+    const affectedTaskIds = new Set<string>();
+    let trimmedCount = 0;
+
+    segments.forEach(seg => {
+        const segEnd = seg.endTime || Date.now();
+        
+        // Check for overlap
+        if (seg.startTime < endTime && segEnd > startTime) {
+            affectedTaskIds.add(seg.taskId);
+            trimmedCount++;
+            
+            // Case 1: Fully enveloped (the existing segment is completely inside the new retro task)
+            if (seg.startTime >= startTime && segEnd <= endTime) {
+                // Completely removed. Do not push.
+            } 
+            // Case 2: The retro task splits an existing segment in half
+            else if (seg.startTime < startTime && segEnd > endTime) {
+                nextSegments.push({ ...seg, endTime: startTime });
+                nextSegments.push({ ...seg, id: crypto.randomUUID(), startTime: endTime, endTime: seg.endTime });
+            } 
+            // Case 3: Overlaps at the beginning of the retro task
+            else if (seg.startTime < startTime && segEnd <= endTime) {
+                nextSegments.push({ ...seg, endTime: startTime });
+            } 
+            // Case 4: Overlaps at the end of the retro task
+            else if (seg.startTime >= startTime && segEnd > endTime) {
+                nextSegments.push({ ...seg, startTime: endTime });
+            }
+        } else {
+            nextSegments.push(seg);
+        }
+    });
+
+    nextSegments.push(newSegment);
+    setSegments(nextSegments);
+
+    setTasks(prevTasks => {
+        let updatedTasks = prevTasks.map(t => {
+            if (affectedTaskIds.has(t.id)) {
+                // Recalculate duration from surviving segments
+                const taskSegs = nextSegments.filter(s => s.taskId === t.id);
+                const newDuration = taskSegs.reduce((acc, curr) => {
+                    const e = curr.endTime || Date.now();
+                    return acc + Math.floor((e - curr.startTime) / 1000);
+                }, 0);
+                return { ...t, totalDuration: newDuration };
+            }
+            return t;
+        });
+        return [...updatedTasks, newTask];
+    });
+
+    if (trimmedCount > 0) {
+        setAiPopup({
+            show: true,
+            message: `已补录任务，并自动扣除了 ${trimmedCount} 段与之重叠的时间，防止重复计算。`,
+            type: 'undo',
+            undoData: historyState
+        });
+        setTimeout(() => setAiPopup(null), 8000);
+    } else {
+        setAiPopup({
+            show: true,
+            message: `已成功补录历史任务：${title}`,
+            type: 'suggestion'
+        });
+        setTimeout(() => setAiPopup(null), 3000);
+    }
+
     setShowRetroactive(false);
   };
 
@@ -747,6 +818,33 @@ const App: React.FC = () => {
           <SmartBar onAdd={addTask} timezone={timezone} tags={tags} />
         </div>
       </main>
+
+      {aiPopup && aiPopup.type === 'undo' && (
+        <div className="fixed bottom-24 right-8 max-w-sm bg-slate-800 border border-yellow-500/50 shadow-2xl shadow-yellow-900/50 p-4 rounded-xl animate-fade-in-up z-50 flex gap-4">
+          <div className="w-10 h-10 rounded-full bg-yellow-600 flex items-center justify-center shrink-0">
+            <i className="fa-solid fa-clock-rotate-left text-white"></i>
+          </div>
+          <div className="flex-1">
+             <h4 className="font-bold text-white text-sm mb-1">时间轴已调整</h4>
+             <p className="text-sm text-slate-300 mb-3">{aiPopup.message}</p>
+             <button 
+                 onClick={() => {
+                     if (aiPopup.undoData) {
+                         setTasks(aiPopup.undoData.tasks);
+                         setSegments(aiPopup.undoData.segments);
+                         setAiPopup(null);
+                     }
+                 }}
+                 className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded transition-colors"
+             >
+                 <i className="fa-solid fa-rotate-left mr-1"></i> 撤销调整
+             </button>
+          </div>
+          <button onClick={() => setAiPopup(null)} className="text-slate-500 hover:text-white self-start">
+            <i className="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      )}
 
       {aiPopup && aiPopup.type === 'suggestion' && (
         <div className="fixed bottom-24 right-8 max-w-sm bg-slate-800 border border-green-500/50 shadow-2xl shadow-green-900/50 p-4 rounded-xl animate-fade-in-up z-50 flex gap-4">
