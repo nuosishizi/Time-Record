@@ -144,6 +144,13 @@ export const SmartBar: React.FC<SmartBarProps> = ({ onAdd, timezone }) => {
       {/* Time Picker Popup */}
       {showTimePicker && (
         <div ref={pickerRef} className="absolute bottom-full left-4 mb-2 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-4 w-[380px] animate-fade-in-up z-50">
+          {/* Quick Shortcuts */}
+          <div className="flex gap-2 mb-3">
+             <button type="button" onClick={() => { const d = new Date(selectedDate); const now = new Date(); d.setFullYear(now.getFullYear(), now.getMonth(), now.getDate()); setSelectedDate(d); setCalViewDate(d); }} className="flex-1 py-1 text-[10px] bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded border border-slate-600 transition-colors">今天</button>
+             <button type="button" onClick={() => { const d = new Date(selectedDate); const tmrw = new Date(); tmrw.setDate(tmrw.getDate() + 1); d.setFullYear(tmrw.getFullYear(), tmrw.getMonth(), tmrw.getDate()); setSelectedDate(d); setCalViewDate(d); }} className="flex-1 py-1 text-[10px] bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded border border-slate-600 transition-colors">明天</button>
+             <button type="button" onClick={() => { const d = new Date(selectedDate); const nextMon = new Date(); nextMon.setDate(nextMon.getDate() + ((1 + 7 - nextMon.getDay()) % 7 || 7)); d.setFullYear(nextMon.getFullYear(), nextMon.getMonth(), nextMon.getDate()); setSelectedDate(d); setCalViewDate(d); }} className="flex-1 py-1 text-[10px] bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded border border-slate-600 transition-colors">下周一</button>
+          </div>
+
           {/* Calendar Header */}
           <div className="flex justify-between items-center mb-2 px-1">
               <button type="button" onClick={() => changeMonth(-1)} className="text-slate-400 hover:text-white"><i className="fa-solid fa-chevron-left text-xs"></i></button>

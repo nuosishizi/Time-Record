@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Tag } from '../types';
 
 interface RetroactiveModalProps {
@@ -7,67 +7,6 @@ interface RetroactiveModalProps {
   onSave: (title: string, tagId: string, startTime: number, endTime: number, description: string) => void;
   onClose: () => void;
 }
-
-// Simple internal Time Picker Component similar to SmartBar
-const GridTimePicker: React.FC<{ 
-    selectedTimeStr: string, 
-    onSelect: (time: string) => void,
-    onClose: () => void
-}> = ({ selectedTimeStr, onSelect, onClose }) => {
-    // Parse current HH:mm
-    const [currentH, currentM] = selectedTimeStr.split(':').map(Number);
-    const pickerRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
-                onClose();
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onClose]);
-
-    return (
-        <div ref={pickerRef} className="absolute top-full mt-2 left-0 z-50 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-4 w-64 animate-fade-in-up">
-            <div className="text-xs text-slate-400 mb-2">小时</div>
-            <div className="grid grid-cols-6 gap-1 mb-4 h-32 overflow-y-auto custom-scrollbar">
-                {Array.from({ length: 24 }).map((_, h) => (
-                    <button
-                        key={h}
-                        type="button"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onSelect(`${h.toString().padStart(2, '0')}:${currentM.toString().padStart(2, '0')}`);
-                        }}
-                        className={`p-1 text-xs rounded ${currentH === h ? 'bg-blue-500 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
-                    >
-                        {h}
-                    </button>
-                ))}
-            </div>
-            <div className="text-xs text-slate-400 mb-2">分钟</div>
-            <div className="grid grid-cols-4 gap-2">
-                {[0, 15, 30, 45].map(m => (
-                    <button
-                        key={m}
-                        type="button"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onSelect(`${currentH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-                            onClose();
-                        }}
-                        className={`p-2 text-sm rounded ${currentM === m ? 'bg-blue-500 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}
-                    >
-                        :{m.toString().padStart(2, '0')}
-                    </button>
-                ))}
-            </div>
-        </div>
-    );
-};
 
 export const RetroactiveModal: React.FC<RetroactiveModalProps> = ({ tags, onSave, onClose }) => {
   const [title, setTitle] = useState('');
@@ -77,21 +16,17 @@ export const RetroactiveModal: React.FC<RetroactiveModalProps> = ({ tags, onSave
   const [endTime, setEndTime] = useState('10:00');
   const [description, setDescription] = useState('');
 
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
     // Construct timestamps
     const startObj = new Date(`${date}T${startTime}`);
-    const endObj = new Date(`${date}T${endTime}`);
+    let endObj = new Date(`${date}T${endTime}`);
 
-    // Basic validation
+    // Cross-day logic: If end time is earlier than start time, it likely crossed midnight
     if (endObj.getTime() <= startObj.getTime()) {
-      alert("结束时间必须晚于开始时间");
-      return;
+        endObj.setDate(endObj.getDate() + 1);
     }
 
     onSave(title, tagId, startObj.getTime(), endObj.getTime(), description);
@@ -100,14 +35,16 @@ export const RetroactiveModal: React.FC<RetroactiveModalProps> = ({ tags, onSave
   // Calculate duration preview
   const getDurationPreview = () => {
     const start = new Date(`${date}T${startTime}`).getTime();
-    const end = new Date(`${date}T${endTime}`).getTime();
-    if (end > start) {
-      const diffMin = Math.floor((end - start) / 60000);
-      const h = Math.floor(diffMin / 60);
-      const m = diffMin % 60;
-      return `${h}小时 ${m}分钟`;
+    let end = new Date(`${date}T${endTime}`).getTime();
+    
+    if (end <= start) {
+        end += 24 * 60 * 60 * 1000; // Add 1 day if crossed midnight
     }
-    return '--';
+
+    const diffMin = Math.floor((end - start) / 60000);
+    const h = Math.floor(diffMin / 60);
+    const m = diffMin % 60;
+    return `${h}小时 ${m}分钟`;
   };
 
   return (
@@ -165,42 +102,24 @@ export const RetroactiveModal: React.FC<RetroactiveModalProps> = ({ tags, onSave
           <div className="grid grid-cols-2 gap-4 items-center">
              <div className="relative">
                 <label className="text-xs text-slate-400 block mb-1">开始时间</label>
-                <button
-                    type="button"
-                    onClick={() => { setShowStartPicker(!showStartPicker); setShowEndPicker(false); }}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-left outline-none flex justify-between items-center"
-                >
-                    {startTime}
-                    <i className="fa-regular fa-clock text-slate-500 text-xs"></i>
-                </button>
-                {showStartPicker && (
-                    <GridTimePicker 
-                        selectedTimeStr={startTime} 
-                        onSelect={setStartTime} 
-                        onClose={() => setShowStartPicker(false)} 
-                    />
-                )}
+                <input 
+                    type="time"
+                    value={startTime}
+                    onChange={e => setStartTime(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-left outline-none"
+                />
              </div>
 
              <div className="relative">
                 <label className="text-xs text-slate-400 block mb-1">结束时间</label>
-                <button
-                    type="button"
-                    onClick={() => { setShowEndPicker(!showEndPicker); setShowStartPicker(false); }}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-left outline-none flex justify-between items-center"
-                >
-                    {endTime}
-                    <i className="fa-regular fa-clock text-slate-500 text-xs"></i>
-                </button>
-                {showEndPicker && (
-                    <GridTimePicker 
-                        selectedTimeStr={endTime} 
-                        onSelect={setEndTime} 
-                        onClose={() => setShowEndPicker(false)} 
-                    />
-                )}
+                <input 
+                    type="time"
+                    value={endTime}
+                    onChange={e => setEndTime(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-left outline-none"
+                />
                 
-                <div className="absolute top-8 right-12 text-xs text-green-400 font-mono pointer-events-none">
+                <div className="absolute top-8 right-12 text-[10px] text-green-400 font-mono pointer-events-none">
                     {getDurationPreview()}
                 </div>
              </div>

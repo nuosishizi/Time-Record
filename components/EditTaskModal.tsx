@@ -10,12 +10,16 @@ interface EditTaskModalProps {
 }
 
 export const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, tags, onSave, onClose }) => {
+  const initDate = new Date(task.planTime);
+  
   const [title, setTitle] = useState(task.title);
   const [tagId, setTagId] = useState(task.tagId);
   const [description, setDescription] = useState(task.description || '');
   const [links, setLinks] = useState(task.links || '');
-  const [planDate, setPlanDate] = useState(new Date(task.planTime).toISOString().split('T')[0]);
-  const [planTime, setPlanTime] = useState(new Date(task.planTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+  
+  // Use explicit local components to avoid UTC drift or locale format mismatches
+  const [planDate, setPlanDate] = useState(`${initDate.getFullYear()}-${String(initDate.getMonth() + 1).padStart(2, '0')}-${String(initDate.getDate()).padStart(2, '0')}`);
+  const [planTime, setPlanTime] = useState(`${String(initDate.getHours()).padStart(2, '0')}:${String(initDate.getMinutes()).padStart(2, '0')}`);
   const [recurrence, setRecurrence] = useState<RecurrenceType>(task.recurrence);
 
   const handleSubmit = (e: React.FormEvent) => {
