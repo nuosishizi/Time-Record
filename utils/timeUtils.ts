@@ -38,15 +38,12 @@ export const formatDateTimeInZone = (dateInput: string | number | Date, timezone
 
 /**
  * Returns the hour (0-23) of a date in a specific timezone
+ * This uses a highly reliable parsing method to avoid cross-browser formatting issues and strictly respects DST.
  */
 export const getHourInZone = (date: Date, timezone: string): number => {
     try {
-        const str = new Intl.DateTimeFormat('en-US', {
-            hour: 'numeric',
-            hour12: false,
-            timeZone: timezone
-        }).format(date);
-        return parseInt(str) % 24;
+        const localString = date.toLocaleString('en-US', { timeZone: timezone });
+        return new Date(localString).getHours();
     } catch (e) {
         return date.getHours();
     }
@@ -58,11 +55,17 @@ export const getHourInZone = (date: Date, timezone: string): number => {
 export const getTimezoneOffset = (timezone: string): string => {
   try {
     const now = new Date();
-    const iso = now.toLocaleString('en-US', { timeZone: timezone, timeZoneName: 'shortOffset' });
-    // iso example: "12/8/2025, 6:00:00 PM GMT+8" or "GMT-5"
-    const parts = iso.split(' ');
-    const offsetPart = parts[parts.length - 1];
-    return offsetPart.replace('GMT', 'UTC');
+    // Use formatToParts to accurately extract the timezone offset without relying on GMT strings
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        timeZoneName: 'shortOffset'
+    }).formatToParts(now);
+    
+    const offsetPart = parts.find(p => p.type === 'timeZoneName');
+    if (offsetPart) {
+        return offsetPart.value.replace('GMT', 'UTC');
+    }
+    return 'UTC';
   } catch (e) {
     return 'UTC';
   }

@@ -154,3 +154,37 @@ export const analyzeDailyTimeline = async (dateStr: string, timelineText: string
         return "分析服务繁忙，请稍后重试。";
     }
 }
+
+/**
+ * Analyzes a generated schedule matrix for copied text.
+ */
+export const analyzeScheduleMatrix = async (matrixText: string): Promise<string> => {
+    const ai = getClient();
+    const settings = getSettings();
+
+    const prompt = `
+      You are a strict, professional time-management coach.
+      Here is the user's detailed schedule matrix (Task with durations, and idle times indicated):
+      
+      ${matrixText}
+      
+      Tasks:
+      1. Analyze the time allocation based on the specific tasks.
+      2. Evaluate the total active time versus idle (empty) time. Is the idle time reasonable or excessive?
+      3. Identify potential "mo-yu" (slacking off) or wasted time.
+      4. Provide a concise, hard-hitting summary and actionable advice to cherish time better.
+      
+      Format: Use bullet points. Keep it under 200 words. Output in Chinese. Do NOT include greetings, go straight to the points.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+          model: settings.model,
+          contents: prompt,
+        });
+        return response.text?.trim() || "暂无分析建议。";
+    } catch (error) {
+        console.error("Gemini Matrix Error", error);
+        return "AI 分析服务繁忙或未配置 API Key，请稍后重试。";
+    }
+}
