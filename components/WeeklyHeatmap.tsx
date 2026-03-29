@@ -185,7 +185,8 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
     if (enableAIAnalysis) {
         const analysis = await analyzeScheduleMatrix(finalTsv);
         setAiSummary(analysis);
-        finalTsv = `AI 分析总结：\n${analysis}\n\n${finalTsv}`;
+        // Wrap the entire AI analysis in quotes to force Google Sheets to put it in a single cell
+        finalTsv = `"AI 分析总结：\n\n${analysis}"\n\n${finalTsv}`;
         setIsAnalyzing(false);
     }
     

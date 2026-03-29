@@ -168,11 +168,15 @@ export const analyzeScheduleMatrix = async (matrixText: string): Promise<string>
       
       ${matrixText}
       
+      IMPORTANT CONTEXT: 
+      - The current local time is ${new Date().toLocaleString('zh-CN', { timeZone: settings.timezone })}. 
+      - ONLY evaluate the time that has ALREADY PASSED today. Do NOT criticize the user for having "idle time" or "wasting time" for hours that are still in the future!
+      
       Tasks:
-      1. Analyze the time allocation based on the specific tasks.
-      2. Evaluate the total active time versus idle (empty) time. Is the idle time reasonable or excessive?
-      3. Identify potential "mo-yu" (slacking off) or wasted time.
-      4. Provide a concise, hard-hitting summary and actionable advice to cherish time better.
+      1. Analyze the time allocation based on the specific tasks done so far.
+      2. Evaluate the active time versus idle time for the PAST hours. Is the idle time reasonable?
+      3. Identify potential "mo-yu" (slacking off) or wasted time during the elapsed parts of the day.
+      4. Provide a concise, hard-hitting summary and actionable advice.
       
       Format: Use bullet points. Keep it under 200 words. Output in Chinese. Do NOT include greetings, go straight to the points.
     `;

@@ -47,8 +47,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
       timezone: timezone
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    window.location.reload(); // Reload to apply global timezone changes cleanly
-    onClose();
+    
+    // Explicitly update App state if possible, but reload is safer for global Date changes
+    window.location.reload(); 
   };
 
   const handleModelSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
