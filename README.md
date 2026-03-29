@@ -1,20 +1,80 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# MindFlow AI - 个人极简时间管理与复盘助手
 
-# Run and deploy your AI Studio app
+> **“只有精确地记录时间，才能真正地掌控时间。”** 
+> 
+> MindFlow AI 是一款完全免费、本地化运行、并且深度整合 AI 模型的时间管理与任务复盘工具。它抛弃了传统软件繁琐的操作，致力于提供像发微信一样简单的时间记录体验。
 
-This contains everything you need to run your app locally.
+---
 
-View your app in AI Studio: https://ai.studio/apps/drive/1Eet2Z8VmYKPS6CV9gBcIIBjMC0BJk5Tg
+## ✨ 核心特色
 
-## Run Locally
+1. 🔒 **绝对的隐私安全 (Local First)**
+   - 您的所有任务、时间记录和复盘数据，**100% 仅存储在您的本地电脑（浏览器 localStorage）中**。
+   - 不需要注册账号，不需要强制连网登录，不会有任何数据被上传到云端服务器。
+   - 支持一键将所有数据导出为纯文本的 `JSON` 文件，以便您在换电脑时无缝恢复。
 
-**Prerequisites:**  Node.js
+2. 🤖 **AI 深度分析与自动化**
+   - **智能标签分类**：随手输入一句“和王总确认设计稿”，系统会自动将其打上“商务/沟通”的分类标签。
+   - **时间矩阵复盘**：在一周或一天结束时，AI 会像一位严厉的时间导师，审视您过去几个小时的任务分布，并为您生成硬核、无废话的改进建议。
+   - **支持自定义大模型**：如果您有自己的 Gemini API Key，甚至可以自由填入最新版或实验版的模型名称。
 
+3. 🌊 **流式时间线与动态热力图**
+   - **全局手势控制**：抛弃繁琐的按钮，在时间线区域通过鼠标滚轮或触控板手势，即可如丝滑般无限回溯过往记录。
+   - **周复盘矩阵导出**：一键生成左侧是时间轴、上方是日期的排期矩阵，支持自动合并同类项和时分转换，**完美兼容 Ctrl+V 粘贴至 Google Sheets / Excel**。
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+4. 🌍 **高精度世界时钟**
+   - 支持添加全球近百个主流城市，并精准处理由于**夏令时 (DST)** 带来的时差自动跳变。
+   - 自由拖拽排序，快速换算全球各个角落的重合时间。
+
+---
+
+## 🛠️ 如何使用？
+
+### 📥 方式一：下载免安装 / 安装版 (推荐)
+1. 前往 GitHub 项目右侧的 **[Releases](https://github.com/nuosishizi/Time-Record/releases)** 页面。
+2. 下载最新版本中的 `.exe` 安装包。
+3. 双击运行即可使用。
+
+### 💻 方式二：面向开发者的本地构建
+如果您想自己修改代码或体验最新功能：
+```bash
+# 1. 克隆项目
+git clone https://github.com/nuosishizi/Time-Record.git
+
+# 2. 进入目录并安装依赖
+cd Time-Record
+npm install
+
+# 3. 本地启动（边改边看）
+npm run electron:dev
+
+# 4. 打包为 Windows .exe 文件
+npm run electron:build
+```
+
+---
+
+## 💡 高级功能使用指南
+
+#### 1. 自动重叠裁剪（避免时间污染）
+很多人因为忙碌，忘记实时点击任务开始。
+当您闲下来点击 `[补录历史任务]` 时，如果填入的 `10:00-11:00` 包含了刚才忘记暂停的某项任务，系统会**自动像手术刀一样为您裁剪重叠的时间段**。
+*不用担心手滑误操作，每次裁剪都会弹出一个【撤销】按钮！*
+
+#### 2. 生成完美的 Google Sheets 矩阵排期
+点击主界面的“周视图热力图”：
+1. 您可以在左上角勾选 **☑️ 复制时附带左侧时间列** 和 **☑️ AI 深度分析时间合理性**。
+2. 点击右上角的 **`[📋 复制本周]`**。
+3. 打开一个空白的 Excel 或 Google 表格，直接按 `Ctrl + V`。
+4. 您将得到一个极其规整的表格：附带每日工作记录、摸鱼（空闲）记录、甚至在表格最上方还有 AI 为您写的几百字详细复盘报告。
+
+---
+
+## ⚙️ 系统设置与 AI 接入
+点击左下角的【齿轮图标】：
+- **模型配置**：在此填入您申请的 Google Gemini API Key。如果没有 Key，软件的倒计时、记录、复盘导出等所有基础功能依然可以完美使用，仅 AI 建议功能受限。
+- **自定义模型**：支持在下拉菜单中选择 `[自定义输入...]`，以使用最新的前沿大模型。
+
+## 📄 协议与声明
+本项目基于 MIT 开源协议。所有数据均存储在您的本地，我们无法也不可能获取您的任何工作隐私。
+Enjoy your flow state!
