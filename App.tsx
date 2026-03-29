@@ -767,12 +767,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-ark"></i>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default App;
