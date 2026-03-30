@@ -3,15 +3,18 @@ name: Build and Publish Release
 on:
   push:
     tags:
-      - 'v*' # Trigger workflow only when a tag like v1.0.0 is pushed
+      - 'v*'
 
 jobs:
   release:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     permissions:
-      contents: write # Required to create a release and upload assets
-      id-token: write # Required for attestations
-      attestations: write # Required for attestations
+      contents: write
+      id-token: write
+      attestations: write
 
     steps:
       - name: Check out Git repository
@@ -26,15 +29,22 @@ jobs:
         run: npm ci
 
       - name: Build and Publish to GitHub Releases
-        run: npm run build && npx electron-builder --win --publish always
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            npm run build && npx electron-builder --win --publish always
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            npm run build && npx electron-builder --mac --publish always
+          fi
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: List Release Files
-        run: ls -R release/
-
       - name: Generate Build Attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: 'release/*.exe'
+          subject-path: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.pkg
