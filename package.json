@@ -4,6 +4,7 @@
   "private": true,
   "version": "1.0.1",
   "description": "Local AI Task Assistant",
+  "author": "nuosishizi",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
