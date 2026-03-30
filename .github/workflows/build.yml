@@ -31,6 +31,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: List Release Files
+        run: ls -R release/
+
       - name: Generate Build Attestation
         uses: actions/attest-build-provenance@v2
         with:
