@@ -313,8 +313,11 @@ const App: React.FC = () => {
       playSound('start');
     }
 
-    // 如果没有手动指定标签，才使用异步 AI 分类
-    if (!details.tagId) {
+    // 如果没有手动指定标签，并且开启了自动 AI 分类，才使用异步 AI 分类
+    const settingsRaw = localStorage.getItem('mindflow_settings_v7');
+    const settings = settingsRaw ? JSON.parse(settingsRaw) : { enableAutoAITagging: true };
+
+    if (!details.tagId && settings.enableAutoAITagging !== false) {
         classifyTaskWithAI(title, tags)
         .then(classifiedTagId => {
             if (classifiedTagId) {

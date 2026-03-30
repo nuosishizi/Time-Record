@@ -19,6 +19,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gemini-2.5-flash');
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [enableAutoAITagging, setEnableAutoAITagging] = useState(true);
   const [clearConfirm, setClearConfirm] = useState(false);
   const [isCustomModel, setIsCustomModel] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,6 +38,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
       }
       
       if (parsed.timezone) setTimezone(parsed.timezone);
+      if (parsed.enableAutoAITagging !== undefined) setEnableAutoAITagging(parsed.enableAutoAITagging);
     }
   }, []);
 
@@ -44,7 +46,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
     const settings: AppSettings = {
       apiKey: apiKey.trim(),
       model: model.trim() || 'gemini-2.5-flash',
-      timezone: timezone
+      timezone: timezone,
+      enableAutoAITagging: enableAutoAITagging
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     
@@ -149,6 +152,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
           {/* Section: General Config */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2">基础配置</h3>
+
+            <div className="space-y-1">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                    <input 
+                        type="checkbox" 
+                        checked={enableAutoAITagging} 
+                        onChange={(e) => setEnableAutoAITagging(e.target.checked)}
+                        className="accent-blue-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">开启 AI 自动任务分类</span>
+                </label>
+                <p className="text-[10px] text-slate-500 ml-6">如果关闭，创建任务时将默认不调用 AI，以节省您的 API 额度，除非手动点击 AI 分类按钮。</p>
+            </div>
             
             <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400">所在时区 (国家/城市)</label>

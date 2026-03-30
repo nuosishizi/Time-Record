@@ -73,6 +73,7 @@ export interface AppSettings {
   apiKey?: string;
   model: string;
   timezone: string; // e.g. 'Asia/Shanghai', 'America/New_York'
+  enableAutoAITagging?: boolean; // New setting
 }
 
 export interface CityConfig {
