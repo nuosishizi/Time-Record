@@ -35,7 +35,8 @@ export const WorldClockView: React.FC<WorldClockViewProps> = ({ baseTimezone }) 
         setCities(DEFAULT_CITIES);
     }
 
-    const timer = setInterval(() => setNow(new Date()), 60000); 
+    // Update every 10 seconds for responsive minutes
+    const timer = setInterval(() => setNow(new Date()), 10000); 
     return () => clearInterval(timer);
   }, []);
 
@@ -44,20 +45,23 @@ export const WorldClockView: React.FC<WorldClockViewProps> = ({ baseTimezone }) 
   }, [cities]);
 
   useEffect(() => {
-      // Auto scroll to current time
-      if (currentRowRef.current) {
-          currentRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      // Auto scroll to current time with a slight delay to ensure tab switching is done
+      const timer = setTimeout(() => {
+          if (currentRowRef.current) {
+              currentRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+      }, 100);
+      return () => clearTimeout(timer);
   }, [now]); 
 
   const baseHour = getHourInZone(now, baseTimezone);
+  const currentMinutes = now.getMinutes();
   const rows = Array.from({ length: 24 }, (_, i) => i);
 
   const getTimeAtBaseHour = (targetHourOffset: number) => {
-      const d = new Date();
-      d.setMinutes(0); d.setSeconds(0); d.setMilliseconds(0);
-      const currentBaseHour = getHourInZone(d, baseTimezone);
-      const diff = targetHourOffset - currentBaseHour;
+      const d = new Date(now);
+      // We keep the current minutes but adjust the hour relative to the base timezone's current hour
+      const diff = targetHourOffset - baseHour;
       d.setHours(d.getHours() + diff);
       return d;
   };
@@ -68,11 +72,10 @@ export const WorldClockView: React.FC<WorldClockViewProps> = ({ baseTimezone }) 
   const handleDragStart = (e: React.DragEvent, index: number) => {
       setDraggedIdx(index);
       e.dataTransfer.effectAllowed = "move";
-      // We can set a ghost image here if desired, but default is usually fine
   };
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
-      e.preventDefault(); // Necessary to allow dropping
+      e.preventDefault(); 
       e.dataTransfer.dropEffect = "move";
   };
 
@@ -93,7 +96,7 @@ export const WorldClockView: React.FC<WorldClockViewProps> = ({ baseTimezone }) 
   };
 
   const removeCity = (e: React.MouseEvent, index: number) => {
-      e.stopPropagation(); // Prevent drag start if clicking X
+      e.stopPropagation(); 
       const newCities = cities.filter((_, i) => i !== index);
       setCities(newCities);
   };
@@ -114,10 +117,24 @@ export const WorldClockView: React.FC<WorldClockViewProps> = ({ baseTimezone }) 
 
   return (
     <div className="max-w-7xl mx-auto h-full flex flex-col relative">
+      <style>{`
+        @keyframes breathe-glow {
+          0% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2), inset 0 0 5px rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.4); }
+          50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6), inset 0 0 10px rgba(59, 130, 246, 0.3); border-color: rgba(59, 130, 246, 0.8); }
+          100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2), inset 0 0 5px rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.4); }
+        }
+        .current-time-row {
+          animation: breathe-glow 3s infinite ease-in-out;
+          position: relative;
+          z-index: 10;
+          background: rgba(30, 58, 138, 0.4) !important;
+        }
+      `}</style>
+
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl overflow-hidden flex-1 flex flex-col">
         <div className="flex justify-between items-center mb-4 shrink-0">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <i className="fa-solid fa-earth-americas text-blue-500"></i> 世界时钟
+                <i className="fa-solid fa-earth-americas text-blue-500"></i> 世界时钟对照表
             </h2>
             <div className="flex gap-3">
                 <div className="text-xs text-slate-500 bg-slate-800 px-3 py-1 rounded-full border border-slate-700 flex items-center">
@@ -137,7 +154,7 @@ export const WorldClockView: React.FC<WorldClockViewProps> = ({ baseTimezone }) 
                 <thead className="sticky top-0 z-20 bg-slate-900 shadow-lg">
                     <tr>
                         {/* Base Column */}
-                        <th className="p-2 text-center border-b-2 border-blue-500 bg-slate-800 min-w-[80px]">
+                        <th className="p-2 text-center border-b-2 border-blue-500 bg-slate-800 min-w-[100px]">
                             <div className="text-[10px] text-blue-400 font-bold uppercase">我的位置</div>
                         </th>
                         {/* City Columns (Draggable) */}
@@ -149,7 +166,7 @@ export const WorldClockView: React.FC<WorldClockViewProps> = ({ baseTimezone }) 
                                 onDragOver={(e) => handleDragOver(e, idx)}
                                 onDrop={(e) => handleDrop(e, idx)}
                                 onDragEnd={handleDragEnd}
-                                className={`p-2 text-center border-b border-slate-700 min-w-[90px] group bg-slate-900 cursor-grab active:cursor-grabbing hover:bg-slate-800 transition-colors ${draggedIdx === idx ? 'opacity-50 border-blue-500 border-2' : ''}`}
+                                className={`p-2 text-center border-b border-slate-700 min-w-[110px] group bg-slate-900 cursor-grab active:cursor-grabbing hover:bg-slate-800 transition-colors ${draggedIdx === idx ? 'opacity-50 border-blue-500 border-2' : ''}`}
                             >
                                 <div className="flex flex-col items-center gap-1 relative">
                                     <div className="absolute -top-1 right-0 opacity-0 group-hover:opacity-100 flex gap-1 z-30">
@@ -172,29 +189,30 @@ export const WorldClockView: React.FC<WorldClockViewProps> = ({ baseTimezone }) 
                     {rows.map(hour => {
                         const rowTime = getTimeAtBaseHour(hour);
                         const isCurrentRow = hour === baseHour;
+                        const displayMin = currentMinutes.toString().padStart(2, '0');
 
                         return (
                             <tr 
                                 key={hour} 
                                 ref={isCurrentRow ? currentRowRef : null}
-                                className={`transition-colors h-8 ${isCurrentRow ? 'bg-blue-900/30' : 'hover:bg-slate-800/30'}`}
+                                className={`transition-all h-10 ${isCurrentRow ? 'current-time-row' : 'hover:bg-slate-800/30'}`}
                             >
                                 {/* Base Time Cell */}
-                                <td className={`text-center border-r border-slate-800/50 font-mono text-xs font-bold relative ${isNight(hour) ? 'bg-slate-800/40 text-slate-600' : 'text-blue-400'}`}>
+                                <td className={`text-center border-r border-slate-800/50 font-mono text-sm font-bold relative ${isNight(hour) ? 'bg-slate-800/40 text-slate-600' : 'text-blue-400'}`}>
                                     {isCurrentRow && (
-                                        <div className="absolute left-1 top-1/2 -translate-y-1/2 text-red-500 text-[10px]">
-                                            <i className="fa-solid fa-play"></i>
+                                        <div className="absolute left-2 top-1/2 -translate-y-1/2 text-blue-500 text-[10px] animate-pulse">
+                                            <i className="fa-solid fa-clock"></i>
                                         </div>
                                     )}
-                                    {hour.toString().padStart(2, '0')}:00
+                                    {hour.toString().padStart(2, '0')}:{displayMin}
                                 </td>
                                 
                                 {/* Other Cities Cells */}
                                 {cities.map((city, idx) => {
                                     const cityHour = getHourInZone(rowTime, city.timezone);
                                     return (
-                                        <td key={`${city.name}-${idx}`} className={`text-center border-b border-slate-800/30 font-mono text-xs ${isNight(cityHour) ? 'bg-slate-800/40 text-slate-600' : 'text-slate-300'}`}>
-                                            {cityHour.toString().padStart(2, '0')}:00
+                                        <td key={`${city.name}-${idx}`} className={`text-center border-b border-slate-800/30 font-mono text-sm ${isNight(cityHour) ? 'bg-slate-800/40 text-slate-600' : 'text-slate-300'}`}>
+                                            {cityHour.toString().padStart(2, '0')}:{displayMin}
                                         </td>
                                     );
                                 })}
@@ -205,7 +223,7 @@ export const WorldClockView: React.FC<WorldClockViewProps> = ({ baseTimezone }) 
             </table>
         </div>
         <div className="mt-2 text-center text-[10px] text-slate-600">
-            提示：您可以直接拖拽表头的国旗来调整城市顺序
+            提示：表格实时同步当前分钟；带有呼吸蓝光的一行为当前时刻。
         </div>
       </div>
 
