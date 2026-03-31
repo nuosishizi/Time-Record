@@ -58,7 +58,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "nuosishizi",
+        "owner": "secure-artifacts",
         "repo": "Time-Record"
       }
     ]
