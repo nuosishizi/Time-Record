@@ -1,7 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TimeSegment, Task, Tag } from '../types';
-import { analyzeDailyTimeline } from '../services/geminiService';
 
 interface DailyTimelineProps {
   tasks: Task[];
@@ -16,8 +15,6 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
 
   const [selectedDate, setSelectedDate] = useState(getLocalDateString(new Date()));
   const [calDate, setCalDate] = useState(new Date());
-  const [advice, setAdvice] = useState('');
-  const [loading, setLoading] = useState(false);
   const [daysToRender, setDaysToRender] = useState(14); // Load last 14 days initially
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -97,7 +94,6 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
 
   const scrollToDate = (dateStr: string) => {
       setSelectedDate(dateStr);
-      setAdvice('');
       
       // If the date is older than what we currently render, expand the render limit
       const today = new Date();
@@ -122,24 +118,6 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
               });
           }
       }, 100);
-  };
-
-  const handleAnalysis = async () => {
-    setLoading(true);
-    const targetGroup = groupedTimeline[selectedDate];
-    if (!targetGroup || targetGroup.length === 0) {
-        setAdvice("该日期暂无记录可供分析。");
-        setLoading(false);
-        return;
-    }
-
-    const timelineText = targetGroup.map(item => 
-      `${item.startTime} - ${item.endTime}: [${item.tagName}] ${item.taskTitle} (${item.duration} min)`
-    ).join('\n');
-
-    const result = await analyzeDailyTimeline(selectedDate, timelineText);
-    setAdvice(result);
-    setLoading(false);
   };
 
   const formatDurationFriendly = (minutes: number) => {
@@ -265,35 +243,6 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
               <button onClick={() => scrollToDate(getLocalDateString(new Date()))} className="text-xs text-blue-400 hover:text-blue-300 font-medium px-3 py-1 rounded hover:bg-blue-500/10 transition-colors">回到今天</button>
           </div>
         </div>
-
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
-           <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-bold text-white">AI 日报分析</h3>
-              <i className="fa-solid fa-robot text-purple-400"></i>
-           </div>
-           <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-             基于选中的日期 <span className="text-blue-400 font-mono">{selectedDate}</span> 进行深度分析。
-           </p>
-           <button 
-             onClick={handleAnalysis}
-             disabled={loading || !daysWithData.has(selectedDate)}
-             className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
-           >
-             {loading ? <i className="fa-solid fa-circle-notch animate-spin"></i> : <i className="fa-solid fa-wand-magic-sparkles"></i>}
-             {loading ? '分析中...' : '分析选中日期'}
-           </button>
-        </div>
-
-        {advice && (
-            <div className="bg-slate-800/50 border border-purple-500/30 rounded-xl p-5 animate-fade-in shadow-lg overflow-y-auto custom-scrollbar flex-1">
-                <h4 className="text-xs font-bold text-purple-300 mb-3 uppercase flex items-center gap-2">
-                    <i className="fa-solid fa-lightbulb"></i> 分析建议
-                </h4>
-                <div className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
-                    {advice}
-                </div>
-            </div>
-        )}
       </div>
 
       <div className="flex-1 bg-slate-900 border border-slate-800 rounded-xl flex flex-col overflow-hidden shadow-lg relative">

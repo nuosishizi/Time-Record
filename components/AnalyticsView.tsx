@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Tag, Task, TimeSegment } from '../types';
-import { analyzeEfficiencyAI } from '../services/geminiService';
 
 interface AnalyticsViewProps {
   tasks: Task[];
@@ -15,8 +14,6 @@ interface DailyStat {
 }
 
 export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, tags, segments }) => {
-  const [advice, setAdvice] = useState<string>('');
-  const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<{tagId: string, duration: number, percentage: number}[]>([]);
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
 
@@ -79,18 +76,6 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, tags, segme
       setDailyStats(sortedDays);
   };
 
-  const handleGetAdvice = async () => {
-    setLoading(true);
-    const aiInput = stats.map(s => {
-      const t = tags.find(tag => tag.id === s.tagId);
-      return { tagName: t?.name || 'Unknown', durationMinutes: s.duration / 60 };
-    });
-
-    const result = await analyzeEfficiencyAI(aiInput);
-    setAdvice(result);
-    setLoading(false);
-  };
-
   const formatDuration = (sec: number) => {
     const h = Math.floor(sec / 3600);
     const m = Math.floor((sec % 3600) / 60);
@@ -100,8 +85,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, tags, segme
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       
-      {/* Overall Distribution & AI */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Overall Distribution */}
+      <div className="grid grid-cols-1 gap-6">
         {/* Chart Section */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
           <h3 className="text-lg font-bold text-white mb-6">总体分类时间统计</h3>
@@ -126,37 +111,6 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, tags, segme
             })}
             {stats.every(s => s.duration === 0) && (
               <p className="text-slate-500 text-center py-8">暂无数据，请先开始一些任务。</p>
-            )}
-          </div>
-        </div>
-
-        {/* AI Advice Section */}
-        <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 rounded-xl p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
-          
-          <div className="flex items-center justify-between mb-4 relative z-10">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <i className="fa-solid fa-wand-magic-sparkles text-purple-400"></i> AI 效率分析
-            </h3>
-            <button 
-              onClick={handleGetAdvice}
-              disabled={loading || stats.every(s => s.duration === 0)}
-              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs rounded-lg transition-colors"
-            >
-              {loading ? <i className="fa-solid fa-circle-notch animate-spin"></i> : '生成建议'}
-            </button>
-          </div>
-
-          <div className="bg-slate-950/30 rounded-xl p-4 min-h-[200px] border border-slate-700/50 relative z-10">
-            {advice ? (
-              <p className="text-slate-200 text-sm leading-relaxed whitespace-pre-line animate-fade-in">
-                {advice}
-              </p>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-500 text-sm gap-2">
-                <i className="fa-solid fa-robot text-2xl mb-2 opacity-50"></i>
-                <p>点击上方按钮，让 AI 分析您的时间分配并给出建议。</p>
-              </div>
             )}
           </div>
         </div>

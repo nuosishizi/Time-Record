@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { AppSettings, Task, Tag, TimeSegment } from '../types';
 import { GLOBAL_CITIES, getCountryName } from '../utils/cityData';
@@ -16,54 +15,30 @@ interface SettingsModalProps {
 const STORAGE_KEY = 'mindflow_settings_v7';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, tags, segments, onImportData, onClearData }) => {
-  const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('gemini-2.5-flash');
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  const [enableAutoAITagging, setEnableAutoAITagging] = useState(true);
   const [clearConfirm, setClearConfirm] = useState(false);
-  const [isCustomModel, setIsCustomModel] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed: AppSettings = JSON.parse(saved);
-      setApiKey(parsed.apiKey || '');
-      
-      const savedModel = parsed.model || 'gemini-2.5-flash';
-      setModel(savedModel);
-      
-      if (!['gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'].includes(savedModel)) {
-          setIsCustomModel(true);
-      }
-      
       if (parsed.timezone) setTimezone(parsed.timezone);
-      if (parsed.enableAutoAITagging !== undefined) setEnableAutoAITagging(parsed.enableAutoAITagging);
     }
   }, []);
 
   const handleSave = () => {
+    // Preserve existing settings but update timezone
+    const savedRaw = localStorage.getItem(STORAGE_KEY);
+    const existing = savedRaw ? JSON.parse(savedRaw) : { model: 'gemini-2.5-flash' };
+    
     const settings: AppSettings = {
-      apiKey: apiKey.trim(),
-      model: model.trim() || 'gemini-2.5-flash',
-      timezone: timezone,
-      enableAutoAITagging: enableAutoAITagging
+      ...existing,
+      timezone: timezone
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     
-    // Explicitly update App state if possible, but reload is safer for global Date changes
     window.location.reload(); 
-  };
-
-  const handleModelSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const val = e.target.value;
-      if (val === 'custom') {
-          setIsCustomModel(true);
-          setModel('');
-      } else {
-          setIsCustomModel(false);
-          setModel(val);
-      }
   };
 
   const handleExport = () => {
@@ -152,19 +127,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
           {/* Section: General Config */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2">基础配置</h3>
-
-            <div className="space-y-1">
-                <label className="flex items-center gap-2 cursor-pointer group">
-                    <input 
-                        type="checkbox" 
-                        checked={enableAutoAITagging} 
-                        onChange={(e) => setEnableAutoAITagging(e.target.checked)}
-                        className="accent-blue-500 w-4 h-4"
-                    />
-                    <span className="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">开启 AI 自动任务分类</span>
-                </label>
-                <p className="text-[10px] text-slate-500 ml-6">如果关闭，创建任务时将默认不调用 AI，以节省您的 API 额度，除非手动点击 AI 分类按钮。</p>
-            </div>
             
             <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400">所在时区 (国家/城市)</label>
@@ -184,53 +146,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
                     <i className="fa-solid fa-chevron-down absolute right-3 top-3.5 text-slate-500 text-xs pointer-events-none"></i>
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1">改变时区后页面将自动刷新。</p>
-            </div>
-
-            <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400">Gemini API Key</label>
-                <div className="relative">
-                    <input 
-                        type="password" 
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder="默认使用系统预设 Key"
-                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg pl-10 pr-3 py-2.5 outline-none focus:border-blue-500 transition-colors placeholder-slate-600"
-                    />
-                    <i className="fa-solid fa-key absolute left-3 top-3.5 text-slate-500 text-xs"></i>
-                </div>
-            </div>
-
-            <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400">模型版本</label>
-                <div className="space-y-2">
-                    <div className="relative">
-                        <select
-                            value={isCustomModel ? 'custom' : model}
-                            onChange={handleModelSelect}
-                            className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg pl-10 pr-3 py-2.5 outline-none focus:border-blue-500 appearance-none cursor-pointer"
-                        >
-                            <option value="gemini-2.5-flash">Gemini 2.5 Flash (推荐 - 平衡)</option>
-                            <option value="gemini-1.5-pro">Gemini 1.5 Pro (更强推理)</option>
-                            <option value="gemini-1.5-flash">Gemini 1.5 Flash (快速)</option>
-                            <option value="custom">自定义输入...</option>
-                        </select>
-                        <i className="fa-solid fa-microchip absolute left-3 top-3.5 text-slate-500 text-xs"></i>
-                        <i className="fa-solid fa-chevron-down absolute right-3 top-3.5 text-slate-500 text-xs pointer-events-none"></i>
-                    </div>
-                    {isCustomModel && (
-                        <div className="relative animate-fade-in-up">
-                            <input 
-                                type="text" 
-                                value={model}
-                                onChange={(e) => setModel(e.target.value)}
-                                placeholder="输入自定义模型名称 (如: gemini-experimental)"
-                                className="w-full bg-slate-800 border border-blue-500/50 text-white rounded-lg pl-10 pr-3 py-2.5 outline-none focus:border-blue-500 transition-colors"
-                                autoFocus
-                            />
-                            <i className="fa-solid fa-pen-to-square absolute left-3 top-3.5 text-blue-500 text-xs"></i>
-                        </div>
-                    )}
-                </div>
             </div>
           </div>
 

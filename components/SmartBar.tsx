@@ -277,9 +277,6 @@ export const SmartBar: React.FC<SmartBarProps> = ({ onAdd, timezone, tags }) => 
                 <div className="space-y-2 col-span-1 md:col-span-2">
                     <label className="text-[10px] text-slate-400 uppercase font-bold">分类标签</label>
                     <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => setSelectedTagId('')} className={`px-2 py-1 rounded text-xs border ${!selectedTagId ? 'bg-blue-600 text-white border-blue-500 shadow-md' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'}`}>
-                            <i className="fa-solid fa-wand-magic-sparkles mr-1"></i> AI 智能分类
-                        </button>
                         {tags.map(t => {
                              const safeColor = t.color || 'bg-slate-500';
                              const activeColor = safeColor.replace('bg-', 'bg-').replace('500', '600') + ' text-white border-transparent shadow-md';

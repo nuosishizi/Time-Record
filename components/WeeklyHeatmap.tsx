@@ -1,7 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
 import { TimeSegment, Tag, Task } from '../types';
-import { analyzeScheduleMatrix } from '../services/geminiService';
 
 interface WeeklyHeatmapProps {
   segments: TimeSegment[];
@@ -14,9 +12,6 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
   const daysMap = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
   
   const [includeTimeColumn, setIncludeTimeColumn] = useState(false);
-  const [enableAIAnalysis, setEnableAIAnalysis] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiSummary, setAiSummary] = useState('');
   const [toastMsg, setToastMsg] = useState('');
 
   // Auto-hide toast
@@ -84,10 +79,7 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
     }
   });
 
-  const copyToSpreadsheet = async (datesToExport: Date[], label: string) => {
-    if (enableAIAnalysis) setIsAnalyzing(true);
-    setAiSummary('');
-
+  const copyToSpreadsheet = (datesToExport: Date[], label: string) => {
     let tsv = (includeTimeColumn ? "时间 \\ 日期\t" : "") + datesToExport.map(d => `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${daysMap[d.getDay()]}`).join("\t") + "\n";
     
     for (let h = 0; h < 24; h++) {
@@ -182,16 +174,8 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
     
     let finalTsv = tsv + (includeTimeColumn ? "单日汇总\t" : "") + dailyTotals.join("\t") + "\n";
     
-    if (enableAIAnalysis) {
-        const analysis = await analyzeScheduleMatrix(finalTsv);
-        setAiSummary(analysis);
-        // Wrap the entire AI analysis in quotes to force Google Sheets to put it in a single cell
-        finalTsv = `"AI 分析总结：\n\n${analysis}"\n\n${finalTsv}`;
-        setIsAnalyzing(false);
-    }
-    
     navigator.clipboard.writeText(finalTsv).then(() => {
-        setToastMsg(`已复制 [${label}] 的排期表${enableAIAnalysis ? '及 AI 分析' : ''}`);
+        setToastMsg(`已复制 [${label}] 的排期表`);
     });
   };
 
@@ -219,50 +203,23 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
                     />
                     <span>复制时附带左侧时间列 (如 10:00)</span>
                 </label>
-                <label className="flex items-center gap-1.5 cursor-pointer hover:text-purple-400 text-purple-500/80 transition-colors font-medium">
-                    <input 
-                        type="checkbox" 
-                        checked={enableAIAnalysis} 
-                        onChange={(e) => setEnableAIAnalysis(e.target.checked)}
-                        className="accent-purple-500 w-3 h-3"
-                    />
-                    <span>AI 深度分析时间合理性</span>
-                </label>
             </div>
         </div>
         <div className="flex gap-2">
             <button 
                 onClick={() => copyToSpreadsheet([weekDates[6]], '今日')}
-                disabled={isAnalyzing}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-xs rounded-lg border border-slate-700 transition-colors flex items-center gap-2"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700 transition-colors flex items-center gap-2"
             >
-                {isAnalyzing ? <i className="fa-solid fa-spinner animate-spin"></i> : <i className="fa-regular fa-copy"></i>} 
-                复制今日
+                <i className="fa-regular fa-copy"></i> 复制今日
             </button>
             <button 
                 onClick={() => copyToSpreadsheet(weekDates, '本周')}
-                disabled={isAnalyzing}
-                className="px-3 py-1.5 bg-blue-900/30 hover:bg-blue-800/50 disabled:opacity-50 text-blue-400 text-xs rounded-lg border border-blue-800/50 transition-colors flex items-center gap-2"
+                className="px-3 py-1.5 bg-blue-900/30 hover:bg-blue-800/50 text-blue-400 text-xs rounded-lg border border-blue-800/50 transition-colors flex items-center gap-2"
             >
-                {isAnalyzing ? <i className="fa-solid fa-spinner animate-spin"></i> : <i className="fa-regular fa-calendar-days"></i>} 
-                复制本周
+                <i className="fa-regular fa-calendar-days"></i> 复制本周
             </button>
         </div>
       </div>
-
-      {aiSummary && (
-          <div className="mb-6 bg-slate-800/50 border border-purple-500/30 rounded-xl p-4 animate-fade-in sticky left-0 z-10 shadow-lg">
-              <div className="flex justify-between items-start mb-3">
-                  <h4 className="text-xs font-bold text-purple-300 flex items-center gap-2">
-                      <i className="fa-solid fa-wand-magic-sparkles"></i> 复制成功！已为您生成 AI 深度时间分析
-                  </h4>
-                  <button onClick={() => setAiSummary('')} className="text-slate-500 hover:text-slate-300"><i className="fa-solid fa-xmark"></i></button>
-              </div>
-              <div className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
-                  {aiSummary}
-              </div>
-          </div>
-      )}
 
       <div className="min-w-[800px]">
         {/* Header Row */}

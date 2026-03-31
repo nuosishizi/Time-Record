@@ -16,7 +16,6 @@ import { ResumeModal } from './components/ResumeModal';
 import { SettingsModal } from './components/SettingsModal';
 import { RetroactiveModal } from './components/RetroactiveModal';
 import { Task, TaskStatus, TimeSegment, RecurrenceType, Tag, AIReminder, Priority } from './types';
-import { classifyTaskWithAI, generateTaskMessage } from './services/geminiService';
 
 const DEFAULT_TAGS: Tag[] = [
   { id: 't-work', name: '工作', color: 'bg-blue-500', description: '代码, 会议, 文档, 业务' },
@@ -174,7 +173,7 @@ const App: React.FC = () => {
 
   const triggerAlert = async (task: Task, type: 'reminder' | 'alert', offsetMin: number) => {
       playSound('alert');
-      const msg = await generateTaskMessage(task, 'reminder');
+      const msg = `提醒：任务 "${task.title}" 就要开始了。`;
       
       const sortedWaiting = tasks
         .filter(t => t.status === TaskStatus.WAITING && t.id !== task.id && new Date(t.planTime).getTime() > Date.now())
@@ -311,20 +310,6 @@ const App: React.FC = () => {
       };
       setSegments(prev => [...prev, newSegment]);
       playSound('start');
-    }
-
-    // 如果没有手动指定标签，并且开启了自动 AI 分类，才使用异步 AI 分类
-    const settingsRaw = localStorage.getItem('mindflow_settings_v7');
-    const settings = settingsRaw ? JSON.parse(settingsRaw) : { enableAutoAITagging: true };
-
-    if (!details.tagId && settings.enableAutoAITagging !== false) {
-        classifyTaskWithAI(title, tags)
-        .then(classifiedTagId => {
-            if (classifiedTagId) {
-                setTasks(prev => prev.map(t => t.id === tempId ? { ...t, tagId: classifiedTagId } : t));
-            }
-        })
-        .catch(e => console.log("AI classification skipped (offline or error)"));
     }
 
     return newTask; 
@@ -518,10 +503,9 @@ const App: React.FC = () => {
            } else {
                setInterruptedTaskId(null);
            }
-       }
-       const msg = await generateTaskMessage(task, 'next-step');
-       setAiPopup({ show: true, message: msg, type: 'suggestion' });
-       setTimeout(() => setAiPopup(null), 8000);
+           }
+           const msg = `任务 "${task.title}" 已完成！做得好。`;
+           setAiPopup({ show: true, message: msg, type: 'suggestion' });       setTimeout(() => setAiPopup(null), 8000);
     } else if (newStatus === TaskStatus.RUNNING) {
        playSound('start');
     }
