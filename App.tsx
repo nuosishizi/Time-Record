@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TaskItem } from './components/TaskItem';
 import { SmartBar } from './components/SmartBar';
@@ -44,9 +44,9 @@ const App: React.FC = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const [resumeTask, setResumeTask] = useState<Task | null>(null);
-  
-  const audioCtx = useRef<AudioContext | null>(null);
+  const [showOlderCompleted, setShowOlderCompleted] = useState(false);
 
+  const audioCtx = useRef<AudioContext | null>(null);
 // --- Initialization ---
   const [isLoaded, setIsLoaded] = useState(false); // 新增：防止初始数据被覆盖的锁
   useEffect(() => {
@@ -598,6 +598,30 @@ const App: React.FC = () => {
   const tasksTomorrow = waitingTasks.filter(t => getDayGroup(t.planTime) === 'Tomorrow');
   const tasksFuture = waitingTasks.filter(t => getDayGroup(t.planTime) === 'Future');
 
+  const groupedCompleted = useMemo(() => {
+    const todayStr = getLocalDateString(new Date(), timezone);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getLocalDateString(yesterday, timezone);
+
+    const groups: Record<string, Task[]> = {
+      'Today': [],
+      'Yesterday': [],
+      'Older': []
+    };
+
+    completedTasks
+      .sort((a, b) => (b.completedAt || b.createdAt) - (a.completedAt || a.createdAt))
+      .forEach(t => {
+        const dateStr = getLocalDateString(new Date(t.completedAt || t.createdAt), timezone);
+        if (dateStr === todayStr) groups['Today'].push(t);
+        else if (dateStr === yesterdayStr) groups['Yesterday'].push(t);
+        else groups['Older'].push(t);
+      });
+
+    return groups;
+  }, [completedTasks, timezone]);
+
   const focusedTask = tasks.find(t => t.id === focusMode);
 
   return (
@@ -790,21 +814,48 @@ const App: React.FC = () => {
               </div>
 
               {completedTasks.length > 0 && (
-                 <div className="space-y-4 pt-8 border-t border-slate-800/50">
-                    <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">已完成</h3>
-                    {completedTasks.map(t => (
-                      <TaskItem 
-                        key={t.id} 
-                        task={t} 
-                        tag={tags.find(tag => tag.id === t.tagId)!} 
-                        onStatusChange={changeTaskStatus} 
-                        onEdit={setEditingTask}
-                        onDelete={setDeletingTask}
-                      />
-                    ))}
+                 <div className="space-y-6 pt-8 border-t border-slate-800/50">
+                    <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-4">已完成任务回顾</h3>
+
+                    {groupedCompleted['Today'].length > 0 && (
+                        <div className="space-y-3">
+                            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1 border-l border-slate-700">今天完成</h4>
+                            {groupedCompleted['Today'].map(t => (
+                                <TaskItem key={t.id} task={t} tag={tags.find(tag => tag.id === t.tagId)!} onStatusChange={changeTaskStatus} onEdit={setEditingTask} onDelete={setDeletingTask} />
+                            ))}
+                        </div>
+                    )}
+
+                    {groupedCompleted['Yesterday'].length > 0 && (
+                        <div className="space-y-3">
+                            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1 border-l border-slate-700">昨天完成</h4>
+                            {groupedCompleted['Yesterday'].map(t => (
+                                <TaskItem key={t.id} task={t} tag={tags.find(tag => tag.id === t.tagId)!} onStatusChange={changeTaskStatus} onEdit={setEditingTask} onDelete={setDeletingTask} />
+                            ))}
+                        </div>
+                    )}
+
+                    {groupedCompleted['Older'].length > 0 && (
+                        <div className="space-y-3">
+                            <button 
+                                onClick={() => setShowOlderCompleted(!showOlderCompleted)}
+                                className="flex items-center gap-2 text-[10px] font-bold text-slate-600 hover:text-slate-400 uppercase tracking-widest transition-colors outline-none"
+                            >
+                                <i className={`fa-solid ${showOlderCompleted ? 'fa-chevron-down' : 'fa-chevron-right'}`}></i>
+                                更早以前 ({groupedCompleted['Older'].length})
+                            </button>
+
+                            {showOlderCompleted && (
+                                <div className="space-y-3 animate-fade-in">
+                                    {groupedCompleted['Older'].map(t => (
+                                        <TaskItem key={t.id} task={t} tag={tags.find(tag => tag.id === t.tagId)!} onStatusChange={changeTaskStatus} onEdit={setEditingTask} onDelete={setDeletingTask} />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                  </div>
-              )}
-            </div>
+              )}            </div>
           )}
 
           {activeTab === 'timeline' && (
