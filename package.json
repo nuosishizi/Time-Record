@@ -49,7 +49,7 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "public/ico.png"
+      "icon": "public/favicon.ico"
     },
     "nsis": {
       "oneClick": false,
