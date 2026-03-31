@@ -59,7 +59,8 @@
       {
         "provider": "github",
         "owner": "secure-artifacts",
-        "repo": "Time-Record"
+        "repo": "Time-Record",
+        "releaseType": "release"
       }
     ]
   }
