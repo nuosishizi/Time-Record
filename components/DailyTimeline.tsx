@@ -208,11 +208,14 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({ tasks, segments, t
       return () => observer.disconnect();
   }, []);
 
-  // Initial scroll to bottom (Today)
+  // Initial scroll to Today
   useEffect(() => {
-      if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-      }
+      const todayStr = getLocalDateString(new Date());
+      // Small delay to ensure DOM is ready and list is rendered
+      const timer = setTimeout(() => {
+          scrollToDate(todayStr);
+      }, 300);
+      return () => clearTimeout(timer);
   }, []);
 
   return (
