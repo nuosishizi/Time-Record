@@ -74,6 +74,7 @@ export interface AppSettings {
   model: string;
   timezone: string; // e.g. 'Asia/Shanghai', 'America/New_York'
   enableAutoAITagging?: boolean; // New setting
+  autoBackupInterval: number; // Interval in hours (e.g. 1, 4, 12, 24)
 }
 
 export interface CityConfig {

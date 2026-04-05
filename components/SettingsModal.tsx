@@ -16,6 +16,7 @@ const STORAGE_KEY = 'mindflow_settings_v7';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, tags, segments, onImportData, onClearData }) => {
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [autoBackupInterval, setAutoBackupInterval] = useState(1);
   const [clearConfirm, setClearConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -24,6 +25,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
     if (saved) {
       const parsed: AppSettings = JSON.parse(saved);
       if (parsed.timezone) setTimezone(parsed.timezone);
+      if (parsed.autoBackupInterval) setAutoBackupInterval(parsed.autoBackupInterval);
     }
   }, []);
 
@@ -34,7 +36,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
     
     const settings: AppSettings = {
       ...existing,
-      timezone: timezone
+      timezone: timezone,
+      autoBackupInterval: autoBackupInterval
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     
@@ -146,6 +149,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, tasks, ta
                     <i className="fa-solid fa-chevron-down absolute right-3 top-3.5 text-slate-500 text-xs pointer-events-none"></i>
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1">改变时区后页面将自动刷新。</p>
+            </div>
+
+            <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400">自动备份频率</label>
+                <div className="relative">
+                    <select
+                        value={autoBackupInterval}
+                        onChange={(e) => setAutoBackupInterval(Number(e.target.value))}
+                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg pl-10 pr-8 py-2.5 outline-none focus:border-blue-500 appearance-none cursor-pointer text-xs"
+                    >
+                        <option value={1}>每 1 小时 (推荐)</option>
+                        <option value={4}>每 4 小时</option>
+                        <option value={12}>每 12 小时</option>
+                        <option value={24}>每 24 小时</option>
+                    </select>
+                    <i className="fa-solid fa-clock-rotate-left absolute left-3 top-3.5 text-slate-500 text-xs"></i>
+                    <i className="fa-solid fa-chevron-down absolute right-3 top-3.5 text-slate-500 text-xs pointer-events-none"></i>
+                </div>
             </div>
           </div>
 

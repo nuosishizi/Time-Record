@@ -6,6 +6,9 @@ import { SmartBar } from './components/SmartBar';
 import { FocusWidget } from './components/FocusWidget';
 import { WeeklyHeatmap } from './components/WeeklyHeatmap';
 import { TagManager } from './components/TagManager';
+import { BackupModal } from './components/BackupModal';
+import { EditSegmentsModal } from './components/EditSegmentsModal';
+import { checkAndPerformBackup } from './utils/backupService';
 import { AnalyticsView } from './components/AnalyticsView';
 import { DailyTimeline } from './components/DailyTimeline';
 import { WorldClockView } from './components/WorldClockView';
@@ -34,6 +37,7 @@ const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showTagManager, setShowTagManager] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showBackup, setShowBackup] = useState(false);
   const [showRetroactive, setShowRetroactive] = useState(false);
   const [focusMode, setFocusMode] = useState<string | null>(null);
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -41,6 +45,7 @@ const App: React.FC = () => {
   const [interruptedTaskId, setInterruptedTaskId] = useState<string | null>(null);
   const [aiPopup, setAiPopup] = useState<AIReminder | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingSegmentsTask, setEditingSegmentsTask] = useState<Task | null>(null);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const [resumeTask, setResumeTask] = useState<Task | null>(null);
   const [showOlderCompleted, setShowOlderCompleted] = useState(false);
@@ -629,6 +634,17 @@ const App: React.FC = () => {
         />
       )}
 
+      {showBackup && (
+        <BackupModal
+           onClose={() => setShowBackup(false)}
+           onRestore={(t, s, tg) => {
+              setTasks(t);
+              setSegments(s);
+              setTags(tg);
+           }}
+        />
+      )}
+
       {showTagManager && (
         <TagManager 
           tags={tags} 
@@ -752,6 +768,7 @@ const App: React.FC = () => {
                                 tag={tags.find(tag => tag.id === t.tagId)!} 
                                 onStatusChange={changeTaskStatus} 
                                 onEdit={setEditingTask}
+                                onEditSegments={setEditingSegmentsTask}
                                 onDelete={setDeletingTask}
                             />
                         ))}
@@ -768,6 +785,7 @@ const App: React.FC = () => {
                                 tag={tags.find(tag => tag.id === t.tagId)!} 
                                 onStatusChange={changeTaskStatus} 
                                 onEdit={setEditingTask}
+                                onEditSegments={setEditingSegmentsTask}
                                 onDelete={setDeletingTask}
                             />
                         ))}
@@ -784,6 +802,7 @@ const App: React.FC = () => {
                                 tag={tags.find(tag => tag.id === t.tagId)!} 
                                 onStatusChange={changeTaskStatus} 
                                 onEdit={setEditingTask}
+                                onEditSegments={setEditingSegmentsTask}
                                 onDelete={setDeletingTask}
                             />
                         ))}
@@ -805,7 +824,7 @@ const App: React.FC = () => {
                         <div className="space-y-3">
                             <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1 border-l border-slate-700">今天完成</h4>
                             {groupedCompleted['Today'].map(t => (
-                                <TaskItem key={t.id} task={t} tag={tags.find(tag => tag.id === t.tagId)!} onStatusChange={changeTaskStatus} onEdit={setEditingTask} onDelete={setDeletingTask} />
+                                <TaskItem key={t.id} task={t} tag={tags.find(tag => tag.id === t.tagId)!} onStatusChange={changeTaskStatus} onEdit={setEditingTask} onEditSegments={setEditingSegmentsTask} onDelete={setDeletingTask} />
                             ))}
                         </div>
                     )}
@@ -814,7 +833,7 @@ const App: React.FC = () => {
                         <div className="space-y-3">
                             <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1 border-l border-slate-700">昨天完成</h4>
                             {groupedCompleted['Yesterday'].map(t => (
-                                <TaskItem key={t.id} task={t} tag={tags.find(tag => tag.id === t.tagId)!} onStatusChange={changeTaskStatus} onEdit={setEditingTask} onDelete={setDeletingTask} />
+                                <TaskItem key={t.id} task={t} tag={tags.find(tag => tag.id === t.tagId)!} onStatusChange={changeTaskStatus} onEdit={setEditingTask} onEditSegments={setEditingSegmentsTask} onDelete={setDeletingTask} />
                             ))}
                         </div>
                     )}
@@ -832,7 +851,7 @@ const App: React.FC = () => {
                             {showOlderCompleted && (
                                 <div className="space-y-3 animate-fade-in">
                                     {groupedCompleted['Older'].map(t => (
-                                        <TaskItem key={t.id} task={t} tag={tags.find(tag => tag.id === t.tagId)!} onStatusChange={changeTaskStatus} onEdit={setEditingTask} onDelete={setDeletingTask} />
+                                        <TaskItem key={t.id} task={t} tag={tags.find(tag => tag.id === t.tagId)!} onStatusChange={changeTaskStatus} onEdit={setEditingTask} onEditSegments={setEditingSegmentsTask} onDelete={setDeletingTask} />
                                     ))}
                                 </div>
                             )}

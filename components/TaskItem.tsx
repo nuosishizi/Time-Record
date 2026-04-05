@@ -11,7 +11,7 @@ interface TaskItemProps {
   onDelete: (task: Task) => void;
 }
 
-export const TaskItem: React.FC<TaskItemProps> = ({ task, tag, currentSegmentStartTime, onStatusChange, onEdit, onDelete }) => {
+export const TaskItem: React.FC<TaskItemProps> = ({ task, tag, currentSegmentStartTime, onStatusChange, onEdit, onDelete, onEditSegments }) => {
   const [expanded, setExpanded] = useState(false);
   const [, setTick] = useState(0);
 
@@ -117,6 +117,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, tag, currentSegmentSta
                     >
                     <i className="fa-solid fa-check"></i> 完成
                     </button>
+
+                    <button
+                    onClick={() => onStatusChange(task.id, TaskStatus.ARCHIVED)}
+                    className="w-24 py-1.5 rounded bg-slate-800 hover:bg-red-500/20 hover:text-red-400 border border-transparent text-slate-500 transition-all text-xs flex items-center justify-center gap-2"
+                    >
+                    <i className="fa-solid fa-xmark"></i> 放弃
+                    </button>
                 </>
             ) : (
                 <div className="flex flex-col gap-2 shrink-0 w-24 items-center">
@@ -137,6 +144,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, tag, currentSegmentSta
       {expanded && (
         <div className="px-4 pb-4 border-t border-slate-700/50 pt-3 bg-slate-800/20 animate-fade-in-down rounded-br-xl">
              <div className="flex justify-end gap-3 mb-3 border-b border-slate-700/50 pb-2">
+                {onEditSegments && (
+                  <button onClick={() => onEditSegments(task)} className="text-xs text-green-400 hover:text-white flex items-center gap-1">
+                      <i className="fa-solid fa-clock"></i> 编辑时间
+                  </button>
+                )}
                 <button onClick={() => onEdit(task)} className="text-xs text-blue-400 hover:text-white flex items-center gap-1">
                     <i className="fa-solid fa-pen"></i> 编辑
                 </button>

@@ -12,7 +12,7 @@ interface SidebarProps {
   onOpenRetroactive: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, onToggle, onOpenTagManager, onExportCSV, onOpenSettings, onOpenRetroactive }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, onToggle, onOpenTagManager, onExportCSV, onOpenSettings, onOpenRetroactive, onOpenBackup }) => {
   return (
     <>
       <div className={`fixed inset-y-0 left-0 bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 z-30 ${isOpen ? 'w-64' : 'w-0 -translate-x-full opacity-0'}`}>
@@ -111,6 +111,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
         </nav>
 
         <div className="p-4 border-t border-slate-800 space-y-2">
+           <button
+             onClick={onOpenBackup}
+             className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-blue-700 text-blue-400 hover:text-white hover:bg-blue-800 transition-colors text-sm"
+          >
+             <i className="fa-solid fa-clock-rotate-left"></i> 历史记录面板
+          </button>
+
            <button
              onClick={onExportCSV}
              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-sm"

@@ -12,11 +12,11 @@ const getSettings = (): AppSettings => {
   } catch (e) {
     console.error("Failed to parse settings", e);
   }
-  return { 
+  return {
     model: 'gemini-2.5-flash',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-  };
-};
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    autoBackupInterval: 1
+  };};
 
 const getClient = () => {
   const settings = getSettings();
