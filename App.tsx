@@ -714,6 +714,7 @@ const App: React.FC = () => {
         onExportCSV={handleExportCSV}
         onOpenSettings={() => setShowSettings(true)}
         onOpenRetroactive={() => setShowRetroactive(true)}
+        onOpenBackup={() => setShowBackup(true)}
       />
 
       {/* Main Content */}
