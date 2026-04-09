@@ -10,6 +10,7 @@ interface SidebarProps {
   onExportCSV: () => void;
   onOpenSettings: () => void;
   onOpenRetroactive: () => void;
+  onOpenBackup: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, onToggle, onOpenTagManager, onExportCSV, onOpenSettings, onOpenRetroactive, onOpenBackup }) => {

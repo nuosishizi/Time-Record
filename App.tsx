@@ -142,6 +142,8 @@ const App: React.FC = () => {
     localStorage.setItem('mindflow_tasks_v7', JSON.stringify(tasks));
     localStorage.setItem('mindflow_segments_v7', JSON.stringify(segments));
     localStorage.setItem('mindflow_tags_v7', JSON.stringify(tags));
+
+    checkAndPerformBackup(tasks, segments, tags, 12);
   }, [tasks, segments, tags, isLoaded]); // 记得把 isLoaded 加到依赖列表里
 
   // --- Reminder System ---
@@ -428,6 +430,19 @@ const App: React.FC = () => {
     setEditingTask(null);
   };
 
+  const handleUpdateSegments = (taskId: string, newSegments: TimeSegment[], newTotalDuration: number) => {
+    setSegments(prev => {
+      const otherSegments = prev.filter(s => s.taskId !== taskId);
+      return [...otherSegments, ...newSegments];
+    });
+    setTasks(prev => prev.map(t =>
+      t.id === taskId
+        ? { ...t, totalDuration: newTotalDuration }
+        : t
+    ));
+    setEditingSegmentsTask(null);
+  };
+
   const handleDeleteTask = (scope: 'single' | 'all') => {
     if (!deletingTask) return;
     
@@ -659,6 +674,15 @@ const App: React.FC = () => {
             tags={tags} 
             onSave={handleUpdateTask} 
             onClose={() => setEditingTask(null)} 
+        />
+      )}
+
+      {editingSegmentsTask && (
+        <EditSegmentsModal
+          task={editingSegmentsTask}
+          segments={segments}
+          onSave={handleUpdateSegments}
+          onClose={() => setEditingSegmentsTask(null)}
         />
       )}
 
