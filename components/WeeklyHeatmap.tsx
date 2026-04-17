@@ -13,6 +13,7 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
   
   const [includeTimeColumn, setIncludeTimeColumn] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+  const [weekOffset, setWeekOffset] = useState(0);
 
   // Auto-hide toast
   useEffect(() => {
@@ -22,9 +23,10 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
       }
   }, [toastMsg]);
 
-  // Generate the last 7 days ending today
+  // Generate the 7 days based on weekOffset
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  today.setDate(today.getDate() + weekOffset * 7);
   const weekDates = Array.from({ length: 7 }, (_, i) => {
       return new Date(today.getTime() - (6 - i) * 24 * 3600 * 1000);
   });
@@ -190,9 +192,35 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
 
       <div className="flex justify-between items-center mb-4 sticky left-0 z-20">
         <div>
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-            <i className="fa-solid fa-border-all"></i> 近7天时间分布
-            </h3>
+            <div className="flex items-center gap-3">
+                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <i className="fa-solid fa-border-all"></i> {weekOffset === 0 ? '近7天时间分布' : '7天时间分布'}
+                </h3>
+                <div className="flex items-center gap-1 bg-slate-800/50 rounded-lg p-0.5 border border-slate-700/50">
+                    <button 
+                        onClick={() => setWeekOffset(prev => prev - 1)}
+                        className="p-1 px-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded transition-colors"
+                        title="上一周"
+                    >
+                        <i className="fa-solid fa-chevron-left text-xs"></i>
+                    </button>
+                    <button 
+                        onClick={() => setWeekOffset(0)}
+                        className={`text-xs px-2 py-1 rounded transition-colors ${weekOffset === 0 ? 'text-slate-500 cursor-default' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700'}`}
+                        disabled={weekOffset === 0}
+                    >
+                        回到本周
+                    </button>
+                    <button 
+                        onClick={() => setWeekOffset(prev => prev + 1)}
+                        className={`p-1 px-2 rounded transition-colors ${weekOffset >= 0 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700'}`}
+                        title="下一周"
+                        disabled={weekOffset >= 0}
+                    >
+                        <i className="fa-solid fa-chevron-right text-xs"></i>
+                    </button>
+                </div>
+            </div>
             <div className="text-xs text-slate-500 mt-2 flex items-center gap-5">
                 <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-300 transition-colors">
                     <input 
@@ -207,16 +235,16 @@ export const WeeklyHeatmap: React.FC<WeeklyHeatmapProps> = ({ segments, tasks, t
         </div>
         <div className="flex gap-2">
             <button 
-                onClick={() => copyToSpreadsheet([weekDates[6]], '今日')}
+                onClick={() => copyToSpreadsheet([weekDates[6]], weekOffset === 0 ? '今日' : '所选最后一天')}
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700 transition-colors flex items-center gap-2"
             >
-                <i className="fa-regular fa-copy"></i> 复制今日
+                <i className="fa-regular fa-copy"></i> {weekOffset === 0 ? '复制今日' : '复制最后一天'}
             </button>
             <button 
-                onClick={() => copyToSpreadsheet(weekDates, '本周')}
+                onClick={() => copyToSpreadsheet(weekDates, weekOffset === 0 ? '本周' : '该周')}
                 className="px-3 py-1.5 bg-blue-900/30 hover:bg-blue-800/50 text-blue-400 text-xs rounded-lg border border-blue-800/50 transition-colors flex items-center gap-2"
             >
-                <i className="fa-regular fa-calendar-days"></i> 复制本周
+                <i className="fa-regular fa-calendar-days"></i> {weekOffset === 0 ? '复制本周' : '复制该周'}
             </button>
         </div>
       </div>
