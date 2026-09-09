@@ -6,6 +6,7 @@ const apiServer = require('./apiServer.cjs');
 if (require('electron-squirrel-startup')) app.quit();
 
 let mainWindow = null;
+let floating = null;
 
 // --- 单实例锁逻辑 ---
 const gotTheLock = app.requestSingleInstanceLock();
@@ -18,6 +19,7 @@ if (!gotTheLock) {
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
       mainWindow.focus();
     }
   });
@@ -29,6 +31,7 @@ if (!gotTheLock) {
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false, // 允许渲染进程使用 Node 能力（简单版配置）
+        backgroundThrottling: false,
       },
       // 隐藏菜单栏 (如果你想要原生菜单栏可以去掉这行)
       autoHideMenuBar: true, 
@@ -45,12 +48,17 @@ if (!gotTheLock) {
       mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
     }
 
+    mainWindow.on('close', event => {
+      if (floating?.keepMainAlive()) { event.preventDefault(); mainWindow.hide(); }
+    });
     mainWindow.on('closed', () => {
+      floating?.close();
       mainWindow = null;
     });
   }
 
   app.whenReady().then(() => {
+    floating = require('./floating.cjs')(() => mainWindow);
     createWindow();
 
     // 初始化 API 服务器

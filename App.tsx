@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { TaskItem } from './components/TaskItem';
 import { SmartBar } from './components/SmartBar';
 import { FocusWidget } from './components/FocusWidget';
+import type { FloatingCommand } from './components/FloatingWindow';
 import { WeeklyHeatmap } from './components/WeeklyHeatmap';
 import { TagManager } from './components/TagManager';
 import { BackupModal } from './components/BackupModal';
@@ -584,6 +585,51 @@ const App: React.FC = () => {
     setTasks(withNext);
   };
 
+  // A single writer handles commands from both windows; the widget never loads or saves task storage.
+  const floatingBusy = useRef(false);
+  const floatingHandler = useRef<(command: FloatingCommand) => Promise<void>>(async () => {});
+  floatingHandler.current = async command => {
+    if (!isLoaded) throw new Error('任务正在加载，请稍后重试。');
+    if (command.type === 'create') {
+      const title = typeof command.title === 'string' ? command.title.trim() : '';
+      if (!title || title.length > 200) throw new Error('请输入 1–200 字的任务名称。');
+      const tag = tagsRef.current.find(t => t.id === command.tagId);
+      if (!tag) throw new Error('分类已改变，请重新选择。');
+      await addTask(title, new Date(), RecurrenceType.NONE, command.start === true, { description: '', links: '', reminderOffsets: [], tagId: tag.id });
+    } else {
+      const task = tasksRef.current.find(t => t.id === command.taskId);
+      if (!task || ![TaskStatus.RUNNING, TaskStatus.PAUSED].includes(task.status)) throw new Error('任务状态已改变，请查看最新任务。');
+      const next = command.type === 'complete' ? TaskStatus.COMPLETED : command.type === 'pause' ? TaskStatus.PAUSED : TaskStatus.RUNNING;
+      if (task.status !== next) await changeTaskStatus(task.id, next);
+    }
+    // Persist before acknowledging success to the other window.
+    localStorage.setItem('mindflow_tasks_v7', JSON.stringify(tasksRef.current));
+    localStorage.setItem('mindflow_segments_v7', JSON.stringify(segmentsRef.current));
+  };
+  useEffect(() => {
+    if (!(window as any).require) return;
+    const { ipcRenderer } = (window as any).require('electron');
+    const listener = async (_event: unknown, { id, command }: { id: string; command: FloatingCommand }) => {
+      if (floatingBusy.current) { ipcRenderer.send('floating:result', { id, result: { ok: false, error: '正在保存，请稍后重试。' } }); return; }
+      floatingBusy.current = true;
+      try { await floatingHandler.current(command); ipcRenderer.send('floating:result', { id, result: { ok: true } }); }
+      catch (error) { ipcRenderer.send('floating:result', { id, result: { ok: false, error: error instanceof Error ? error.message : '操作失败，请检查主窗口。' } }); }
+      finally { floatingBusy.current = false; }
+    };
+    ipcRenderer.on('floating:command', listener);
+    return () => ipcRenderer.removeListener('floating:command', listener);
+  }, []);
+  useEffect(() => {
+    if (!isLoaded || !(window as any).require) return;
+    const { ipcRenderer } = (window as any).require('electron');
+    const task = tasks.find(t => t.status === TaskStatus.RUNNING) || [...tasks].reverse().find(t => t.status === TaskStatus.PAUSED);
+    const sampledAt = Date.now();
+    ipcRenderer.send('floating:publish', {
+      task: task ? { id: task.id, title: task.title, status: task.status, start: segments.find(s => s.taskId === task.id && s.endTime === null)?.startTime ?? null, elapsed: sumDurationForTask(segments, task.id, sampledAt), sampledAt } : null,
+      tags: tags.map(t => ({ id: t.id, name: t.name })), timezone,
+    });
+  }, [tasks, segments, tags, timezone, isLoaded]);
+
   // --- API Command Dispatcher Listener ---
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).require) {
@@ -814,6 +860,7 @@ const App: React.FC = () => {
             {activeTab === 'tasks' ? '我的执行台' : activeTab === 'timeline' ? '每日详情 & 分析' : activeTab === 'worldclock' ? '世界时钟对照表' : activeTab === 'heatmap' ? '周视图复盘' : 'AI 效率分析'}
           </h2>
           <div className="flex gap-4">
+             {(window as any).require && <button onClick={() => (window as any).require('electron').ipcRenderer.send('floating:open')} className="px-3 py-1.5 bg-slate-800 text-blue-300 border border-slate-600 rounded-lg text-sm">悬浮窗</button>}
              {runningTasks.length > 0 && (
                <button 
                 onClick={() => setFocusMode(runningTasks[0].id)}
