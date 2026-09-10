@@ -23,7 +23,7 @@ module.exports = function setupFloating(getMain) {
   function open() {
     if (win && !win.isDestroyed()) { win.close(); return; }
     const area = screen.getPrimaryDisplay().workArea;
-    const bounds = fit({ x: Number.isFinite(saved.x) ? saved.x : area.x + area.width - 550, y: Number.isFinite(saved.y) ? saved.y : area.y + 80, width: 530, height: 104 });
+    const bounds = fit({ x: Number.isFinite(saved.x) ? saved.x : area.x + area.width - 550, y: Number.isFinite(saved.y) ? saved.y : area.y + 80, width: 177, height: 35 });
     win = new BrowserWindow({ ...bounds, useContentSize: true, frame: false, thickFrame: false, transparent: true, resizable: false, maximizable: false, fullscreenable: false, alwaysOnTop: true, skipTaskbar: true, show: false, backgroundColor: '#00000000', title: 'MindFlow 悬浮窗', webPreferences: { preload: path.join(__dirname, 'floating-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
     const enforceTop = () => { if (win && !win.isDestroyed()) { win.setAlwaysOnTop(true, 'screen-saver', 1); win.moveTop(); } };
     enforceTop();

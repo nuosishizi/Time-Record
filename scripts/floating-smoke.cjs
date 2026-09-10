@@ -19,12 +19,12 @@ app.whenReady().then(async () => {
     let floating = await until(() => BrowserWindow.getAllWindows().find(w => w !== main));
     await until(() => js(floating, `!!document.querySelector('[aria-label="任务悬浮窗"]')`).catch(() => false));
     assert.equal(floating.isAlwaysOnTop(), true);
-    assert(Math.abs(floating.getContentBounds().width - 530) <= 8);
-    assert(Math.abs(floating.getContentBounds().height - 104) <= 8);
+    assert(Math.abs(floating.getContentBounds().width - 177) <= 8);
+    assert(Math.abs(floating.getContentBounds().height - 35) <= 8);
     assert.equal(await js(floating, `typeof window.require`), 'undefined');
     assert.equal(await js(floating, `getComputedStyle(document.querySelector('.float-shell')).opacity`), '0.58');
     fs.writeFileSync(path.resolve('release/debug/floating-inactive.png'), (await floating.webContents.capturePage()).toPNG());
-    floating.webContents.sendInputEvent({ type: 'mouseMove', x: 200, y: 20 });
+    floating.webContents.sendInputEvent({ type: 'mouseMove', x: 66, y: 7 });
     await until(() => js(floating, `getComputedStyle(document.querySelector('.float-shell')).opacity==='1'`));
     await input(floating, '固定悬浮窗测试'); await click(floating, '开始');
     await until(() => js(floating, `document.querySelector('.float-task strong')?.textContent==='固定悬浮窗测试'`));
@@ -37,7 +37,7 @@ app.whenReady().then(async () => {
     await until(() => js(floating, `!![...document.querySelectorAll('button')].find(b=>b.textContent==='暂停'&&!b.disabled)`));
     await click(floating, '结束');
     await until(() => js(main, `JSON.parse(localStorage.getItem('mindflow_tasks_v7'))[0]?.status==='Completed'`));
-    assert(Math.abs(floating.getContentBounds().height - 104) <= 8);
+    assert(Math.abs(floating.getContentBounds().height - 35) <= 8);
     floating.setPosition(180, 140); await sleep(250); await click(main, '悬浮窗'); await sleep(200);
     assert.equal(BrowserWindow.getAllWindows().filter(w => w !== main).length, 0);
     await click(main, '悬浮窗'); floating = await until(() => BrowserWindow.getAllWindows().find(w => w !== main));
