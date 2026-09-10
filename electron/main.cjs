@@ -48,9 +48,6 @@ if (!gotTheLock) {
       mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
     }
 
-    mainWindow.on('close', event => {
-      if (floating?.keepMainAlive()) { event.preventDefault(); mainWindow.hide(); }
-    });
     mainWindow.on('closed', () => {
       floating?.close();
       mainWindow = null;

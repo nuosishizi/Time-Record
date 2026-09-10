@@ -7,5 +7,4 @@ contextBridge.exposeInMainWorld('floating', {
     return () => ipcRenderer.removeListener('floating:state', listener);
   },
   command: command => ipcRenderer.invoke('floating:command', command),
-  window: action => ipcRenderer.send('floating:window', action),
 });
